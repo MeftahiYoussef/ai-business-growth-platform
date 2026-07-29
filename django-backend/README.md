@@ -159,7 +159,27 @@ python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 ```
 
-Static files are served through WhiteNoise in production settings with compressed manifest storage. The staging deployment target is Render for Django and PostgreSQL, paired with Vercel for the Next.js frontend. Free Render web services run migrations at startup before Gunicorn because `preDeployCommand` is not supported on the free plan. See `../docs/STAGING_DEPLOYMENT.md`.
+Static files are served through WhiteNoise in production settings with compressed manifest storage. The active staging deployment uses Railway for Django and PostgreSQL, paired with Vercel for the Next.js frontend. The preserved Render configuration is inactive because Render private-repository fetches remained blocked.
+
+Railway staging files:
+
+- `.railwayignore` excludes local secrets, SQLite databases, virtual environments, caches, tests, and generated static output from local-source upload.
+- `railway.toml` defines the health-check path and Gunicorn start command.
+- `Dockerfile` runs `collectstatic`, applies migrations, and starts Gunicorn against the platform `$PORT`.
+
+Active staging backend:
+
+```text
+https://ai-business-growth-backend-staging-production.up.railway.app
+```
+
+Active staging frontend:
+
+```text
+https://ai-business-growth-platform-staging.vercel.app
+```
+
+See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, and rollback limits.
 
 ## API Docs
 

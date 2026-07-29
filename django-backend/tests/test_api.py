@@ -12,6 +12,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from groq import APIError as GroqAPIError
 from groq import APITimeoutError as GroqAPITimeoutError
+from groq import BadRequestError as GroqBadRequestError
 from groq import RateLimitError as GroqRateLimitError
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
@@ -298,6 +299,22 @@ class ApiFlowTests(TestCase):
                 format="json",
             )
         self.assertEqual(response.status_code, 201, response.content)
+
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=fake_groq_provider()):
+            slashless = self.client.post(
+                "/api/ai/content-plans/generate",
+                {
+                    "business_id": business["_id"],
+                    "platforms": ["instagram", "linkedin"],
+                    "start_date": "2026-08-03",
+                    "goal": "increase engagement",
+                    "additional_instructions": "Focus on educational content.",
+                },
+                format="json",
+            )
+        self.assertEqual(slashless.status_code, 201, slashless.content)
+        self.assertEqual(len(slashless.data["plan"]["items"]), 7)
+
         self.assertEqual(response.data["provider"], "groq")
         self.assertEqual(response.data["status"], "completed")
         self.assertEqual(len(response.data["plan"]["items"]), 7)
@@ -333,6 +350,13 @@ class ApiFlowTests(TestCase):
         )
         self.assertEqual(duplicate.status_code, 201, duplicate.content)
         self.assertEqual(len(duplicate.data["data"]), 0)
+        duplicate_slashless = self.client.post(
+            f"/api/ai/content-plans/{generation_id}/create-drafts",
+            {"item_day_numbers": [1, 2]},
+            format="json",
+        )
+        self.assertEqual(duplicate_slashless.status_code, 201, duplicate_slashless.content)
+        self.assertEqual(len(duplicate_slashless.data["data"]), 0)
         self.assertEqual(ContentDraft.objects.filter(source_ai_generation_id=generation_id).count(), 2)
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
@@ -593,6 +617,35 @@ class ApiFlowTests(TestCase):
         self.assertEqual(kwargs["response_format"]["type"], "json_schema")
         self.assertEqual(kwargs["max_completion_tokens"], 4000)
         self.assertEqual(kwargs["reasoning_effort"], "medium")
+
+    @override_settings(GROQ_API_KEY="test-key")
+    def test_groq_provider_retries_structured_schema_failure_once(self):
+        provider = GroqProvider()
+        response = httpx.Response(
+            400,
+            request=httpx.Request("POST", "https://api.groq.com"),
+            json={"error": {"code": "json_validate_failed", "message": "Generated JSON does not match the expected schema"}},
+        )
+        provider.client.chat.completions.create = Mock(
+            side_effect=[
+                GroqBadRequestError("schema failed", response=response, body=response.json()),
+                groq_response(json.dumps(valid_content_plan())),
+            ]
+        )
+        structured = provider.generate_structured_json(
+            system="system",
+            user="user",
+            schema={"type": "object"},
+            prompt_version="content-plan-v1",
+        )
+        self.assertEqual(structured.provider, "groq")
+        self.assertEqual(provider.client.chat.completions.create.call_count, 2)
+        first = provider.client.chat.completions.create.call_args_list[0].kwargs
+        second = provider.client.chat.completions.create.call_args_list[1].kwargs
+        self.assertEqual(first["reasoning_effort"], "medium")
+        self.assertEqual(second["reasoning_effort"], "low")
+        self.assertEqual(second["temperature"], 0.2)
+        self.assertIn("Return exactly seven items", second["messages"][1]["content"])
 
     @override_settings(GROQ_API_KEY="test-key")
     def test_groq_provider_maps_errors_and_invalid_output(self):

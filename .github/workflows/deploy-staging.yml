@@ -75,10 +75,24 @@ jobs:
       - run: npm run build
         working-directory: frontend
 
-      - name: Trigger Render backend deploy
-        run: curl --fail --silent --show-error --request POST "$RENDER_BACKEND_DEPLOY_HOOK_URL"
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy Railway backend
+        working-directory: django-backend
+        run: >
+          railway up
+          --project "$RAILWAY_PROJECT_ID"
+          --service "$RAILWAY_BACKEND_SERVICE_ID"
+          --environment "$RAILWAY_ENVIRONMENT"
+          --detach
+          --yes
+          --message "GitHub Actions $GITHUB_SHA"
         env:
-          RENDER_BACKEND_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_BACKEND_SERVICE_ID: ${{ secrets.RAILWAY_BACKEND_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
 
       - name: Trigger Vercel frontend deploy
         run: curl --fail --silent --show-error --request POST "$VERCEL_FRONTEND_DEPLOY_HOOK_URL"
