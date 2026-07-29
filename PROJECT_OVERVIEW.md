@@ -50,4 +50,4 @@ AI Business Growth & Trend Intelligence Platform is a SaaS workspace for social 
 - Health checks: `GET /api/health/live/` confirms the process is running; `GET /api/health/ready/` verifies database connectivity and never calls Groq.
 - Production settings live in `config.settings.production` and require explicit hosts, secret key, restricted CORS/CSRF origins, HTTPS cookie/security settings, static root, structured logging, and PostgreSQL SSL configuration.
 - CI runs backend checks/tests/static analysis against PostgreSQL and frontend lint/type/test/build without a real Groq key.
-- Staging rehearsal target: Vercel for the Next.js frontend, Render for the Django backend, and Render PostgreSQL. Deployment is manual through a GitHub `workflow_dispatch` workflow and platform-managed secrets.
+- Staging rehearsal target: Vercel for the Next.js frontend, Render for the Django backend, and Render PostgreSQL. Current status: PR #1 is merged, Render PostgreSQL is available, Vercel frontend is live, and Render backend creation is blocked until Render's GitHub App is authorized for the private repository.

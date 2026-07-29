@@ -11,6 +11,42 @@ This runbook prepares a reproducible staging rehearsal for the AI Business Growt
 
 This is the smallest architecture that matches the repository: Next.js can run as a managed app, Django can run as a managed WSGI service, and PostgreSQL remains isolated from local SQLite. The existing legacy Node.js backend is not part of this deployment.
 
+## Current Staging Rehearsal State
+
+Last updated: 2026-07-29.
+
+- GitHub PR #1 was merged into `main` at merge commit `f219394`.
+- Render authentication succeeded for `Meftahi's workspace`.
+- Vercel authentication succeeded for account `meftahyyyoussef-4358`.
+- Render PostgreSQL was created:
+  - name: `ai-business-growth-postgres-staging`
+  - id: `dpg-d9kln4taeets739n9060-a`
+  - database: `business_intelligence_staging`
+  - user: `business_intelligence_staging`
+  - region: Oregon
+  - plan: free
+  - status: available
+- Render Django backend was not created because Render cannot yet fetch the private GitHub repository. The Render GitHub App must be authorized for `MeftahiYoussef/ai-business-growth-platform`.
+- Intended backend URL after service creation: `https://ai-business-growth-backend-staging.onrender.com`.
+- Vercel frontend was deployed:
+  - project: `ai-business-growth-platform-staging`
+  - production alias: `https://ai-business-growth-platform-staging.vercel.app`
+  - deployment URL: `https://ai-business-growth-platform-staging-hm26tudfb.vercel.app`
+  - deployment id: `dpl_2mAztDEbcTbfW4XwQ1mSicMAuHzw`
+  - status: ready
+- Vercel `NEXT_PUBLIC_API_URL` is configured for Production and Preview with the intended Render backend URL.
+- Verified frontend HTTPS:
+  - `GET /login` returned HTTP 200.
+  - `GET /` returned HTTP 307 to `/login`.
+- Live backend health checks, API docs, registration/login through Django, Groq generation, draft conversion, backup, restore, rollback, and manual GitHub deployment workflow remain blocked until the Render backend service can be created.
+
+Exact account-owner action required:
+
+1. Open `https://dashboard.render.com/account/repo-connections`.
+2. Connect GitHub if it is not connected.
+3. Install or configure the Render GitHub App with access to `MeftahiYoussef/ai-business-growth-platform`.
+4. Re-run the Render service creation using `render.yaml` or the documented service settings.
+
 ## Backend Environment
 
 Required Render environment variables:
@@ -75,16 +111,10 @@ Build command:
 pip install -r requirements.txt && python manage.py collectstatic --noinput
 ```
 
-Pre-deploy command:
+Free Render web services do not support `preDeployCommand`, so migrations run at startup before Gunicorn. Start command:
 
 ```bash
-python manage.py migrate --noinput
-```
-
-Start command:
-
-```bash
-gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -
+sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -"
 ```
 
 Django's development server must not be used in staging.

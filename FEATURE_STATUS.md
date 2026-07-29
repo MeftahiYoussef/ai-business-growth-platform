@@ -12,7 +12,7 @@
 | Seven-day AI content plan | Complete MVP | Structured output, quota checks, history/usage storage, explicit draft creation. |
 | PostgreSQL readiness | Complete MVP | SQLite fallback preserved; PostgreSQL settings, driver, migrations, indexes, health endpoints, and CI service configured. |
 | Health endpoints | Complete MVP | Liveness and database readiness endpoints exist under `/api/health/`. |
-| Staging deployment prep | Ready for provider setup | Render/Vercel config, Gunicorn, WhiteNoise static files, request IDs, manual staging workflow, and backup/rollback runbook are prepared. Live provider deployment is still manual. |
+| Staging deployment rehearsal | Partial | Render PostgreSQL is available and Vercel frontend is live. Render backend creation is blocked until Render GitHub App access is granted for the private repository. |
 | Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
