@@ -1,13 +1,43 @@
-name: Deploy Staging
+name: Verify Staging
 
 on:
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "main, the current workflow branch, a v* tag, or a commit SHA reachable from main"
+        required: true
+        default: "main"
+        type: string
+      run_smoke_tests:
+        description: "Run non-destructive live staging smoke checks"
+        required: true
+        default: true
+        type: boolean
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+env:
+  STAGING_BACKEND_URL: ${{ vars.STAGING_BACKEND_URL }}
+  STAGING_FRONTEND_URL: ${{ vars.STAGING_FRONTEND_URL }}
 
 jobs:
-  validate-and-deploy:
+  validate:
+    name: Validate Selected Commit
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    environment: staging
-    if: github.ref_name == 'main'
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_FRONTEND_URL }}
+    outputs:
+      commit_sha: ${{ steps.resolve.outputs.commit_sha }}
+      selected_ref: ${{ steps.resolve.outputs.selected_ref }}
     env:
       DJANGO_SETTINGS_MODULE: config.settings.development
       USE_SQLITE: "false"
@@ -22,15 +52,6 @@ jobs:
       AI_PROVIDER: groq
       GROQ_API_KEY: ci-placeholder-groq-key
       GROQ_DEFAULT_MODEL: openai/gpt-oss-20b
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-      RAILWAY_BACKEND_SERVICE_ID: ${{ vars.RAILWAY_BACKEND_SERVICE_ID }}
-      RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      VERCEL_FRONTEND_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_FRONTEND_DEPLOY_HOOK_URL }}
-      STAGING_BACKEND_URL: ${{ vars.STAGING_BACKEND_URL }}
-      STAGING_FRONTEND_URL: ${{ vars.STAGING_FRONTEND_URL }}
     services:
       postgres:
         image: postgres:16
@@ -46,87 +67,237 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - name: Check out selected ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.git_ref }}
+          fetch-depth: 0
+
+      - name: Resolve and validate selected ref
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected_ref="${{ inputs.git_ref }}"
+          git fetch --force --tags origin main
+          commit_sha="$(git rev-parse HEAD)"
+
+          if [[ "$selected_ref" == "main" ]]; then
+            expected_sha="$(git rev-parse origin/main)"
+            if [[ "$commit_sha" != "$expected_sha" ]]; then
+              echo "::error::Selected ref main did not resolve to origin/main."
+              exit 1
+            fi
+          elif [[ "$selected_ref" == "$GITHUB_REF_NAME" && "$GITHUB_REF_TYPE" == "branch" ]]; then
+            :
+          elif git show-ref --verify --quiet "refs/tags/$selected_ref"; then
+            if [[ ! "$selected_ref" =~ ^v[0-9]+[.][0-9]+[.][0-9]+ ]]; then
+              echo "::error::Only version-style release tags are allowed for staging verification."
+              exit 1
+            fi
+          else
+            if ! git merge-base --is-ancestor "$commit_sha" origin/main; then
+              echo "::error::Selected commit is not reachable from origin/main."
+              exit 1
+            fi
+          fi
+
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+          echo "selected_ref=$selected_ref" >> "$GITHUB_OUTPUT"
+          echo "Selected ref: $selected_ref" >> "$GITHUB_STEP_SUMMARY"
+          echo "Resolved commit: $commit_sha" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - uses: actions/setup-node@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
 
-      - name: Record deployment commit
-        run: echo "Deploying commit $GITHUB_SHA to staging"
+      - name: Install backend dependencies
+        run: pip install -r django-backend/requirements.txt
 
-      - name: Validate staging metadata
+      - name: Django check
+        run: python manage.py check
+        working-directory: django-backend
+
+      - name: Check migration drift
+        run: python manage.py makemigrations --check --dry-run
+        working-directory: django-backend
+
+      - name: Apply CI migrations
+        run: python manage.py migrate --noinput
+        working-directory: django-backend
+
+      - name: Run Django tests
+        run: python manage.py test
+        working-directory: django-backend
+
+      - name: Run pytest
+        run: pytest
+        working-directory: django-backend
+
+      - name: Run Ruff
+        run: ruff check .
+        working-directory: django-backend
+
+      - name: Run Mypy
+        run: mypy .
+        working-directory: django-backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Frontend typecheck
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Frontend tests
+        run: npm run test
+        working-directory: frontend
+
+      - name: Frontend production build
+        run: npm run build
+        working-directory: frontend
+
+      - name: Tracked-file secret scan
+        shell: bash
         run: |
-          test -n "$STAGING_BACKEND_URL"
-          test -n "$STAGING_FRONTEND_URL"
+          set -euo pipefail
+          groq_prefix="gs""k_"
+          ! grep -RIn --exclude-dir=.git --exclude=.env --exclude='*.sqlite3' "$groq_prefix" .
+          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.next "NEXT_PUBLIC_GROQ_API_KEY" frontend
+          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.next "NEXT_PUBLIC_OPENAI_API_KEY" frontend
 
-      - run: pip install -r django-backend/requirements.txt
-      - run: python manage.py check
-        working-directory: django-backend
-      - run: python manage.py makemigrations --check --dry-run
-        working-directory: django-backend
-      - run: python manage.py migrate --noinput
-        working-directory: django-backend
-      - run: python manage.py test
-        working-directory: django-backend
-      - run: pytest
-        working-directory: django-backend
-      - run: ruff check .
-        working-directory: django-backend
-      - run: mypy .
-        working-directory: django-backend
-
-      - run: npm ci
-        working-directory: frontend
-      - run: npm run lint
-        working-directory: frontend
-      - run: npm run typecheck
-        working-directory: frontend
-      - run: npm run test
-        working-directory: frontend
-      - run: npm run build
-        working-directory: frontend
-
-      - name: Install Railway CLI
-        if: env.RAILWAY_TOKEN != '' && env.RAILWAY_PROJECT_ID != '' && env.RAILWAY_BACKEND_SERVICE_ID != ''
-        run: npm install --global @railway/cli
-
-      - name: Deploy Railway backend
-        if: env.RAILWAY_TOKEN != '' && env.RAILWAY_PROJECT_ID != '' && env.RAILWAY_BACKEND_SERVICE_ID != ''
-        working-directory: django-backend
-        run: >
-          railway up
-          --project "$RAILWAY_PROJECT_ID"
-          --service "$RAILWAY_BACKEND_SERVICE_ID"
-          --environment "$RAILWAY_ENVIRONMENT"
-          --detach
-          --yes
-          --message "GitHub Actions $GITHUB_SHA"
-
-      - name: Skip Railway deploy
-        if: env.RAILWAY_TOKEN == '' || env.RAILWAY_PROJECT_ID == '' || env.RAILWAY_BACKEND_SERVICE_ID == ''
-        run: echo "Railway deployment credentials are not configured; verifying the existing staging backend."
-
-      - name: Deploy Vercel frontend
-        if: env.VERCEL_TOKEN != '' && env.VERCEL_PROJECT_ID != ''
-        working-directory: frontend
-        run: npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" --project "$VERCEL_PROJECT_ID"
-
-      - name: Trigger Vercel frontend deploy hook
-        if: env.VERCEL_TOKEN == '' && env.VERCEL_FRONTEND_DEPLOY_HOOK_URL != ''
-        run: curl --fail --silent --show-error --request POST "$VERCEL_FRONTEND_DEPLOY_HOOK_URL"
-
-      - name: Skip Vercel deploy
-        if: env.VERCEL_TOKEN == '' && env.VERCEL_FRONTEND_DEPLOY_HOOK_URL == ''
-        run: echo "Vercel deployment hook is not configured; verifying the existing staging frontend."
-
-      - name: Check backend health
+  verify-staging:
+    name: Verify Live Staging
+    needs: [validate]
+    if: >-
+      ${{
+        always() &&
+        (
+          (
+            github.event_name == 'workflow_dispatch' &&
+            inputs.run_smoke_tests &&
+            needs.validate.result == 'success'
+          ) ||
+          (
+            github.event_name == 'deployment_status' &&
+            github.event.deployment_status.state == 'success' &&
+            (
+              github.event.deployment.environment == 'staging' ||
+              startsWith(github.event.deployment_status.environment_url, vars.STAGING_BACKEND_URL) ||
+              startsWith(github.event.deployment_status.environment_url, vars.STAGING_FRONTEND_URL)
+            )
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_FRONTEND_URL }}
+    steps:
+      - name: Validate staging URLs
+        shell: bash
         run: |
-          sleep 60
-          curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/live/"
-          curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/ready/"
+          set -euo pipefail
+          test -n "${STAGING_BACKEND_URL:-}" || { echo "::error::STAGING_BACKEND_URL variable is required."; exit 1; }
+          test -n "${STAGING_FRONTEND_URL:-}" || { echo "::error::STAGING_FRONTEND_URL variable is required."; exit 1; }
 
-      - name: Check frontend health
-        run: curl --fail --silent --show-error "$STAGING_FRONTEND_URL/login" > /dev/null
+      - name: Poll backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_url() {
+            local label="$1"
+            local url="$2"
+            for attempt in {1..30}; do
+              code="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$url" || true)"
+              echo "$label attempt $attempt: HTTP $code"
+              if [[ "$code" == "200" ]]; then
+                return 0
+              fi
+              sleep 10
+            done
+            echo "::error::$label did not become healthy."
+            return 1
+          }
+
+          check_url "backend liveness" "$STAGING_BACKEND_URL/api/health/live/"
+          check_url "backend readiness" "$STAGING_BACKEND_URL/api/health/ready/"
+          check_url "backend API docs" "$STAGING_BACKEND_URL/api/docs/"
+
+      - name: Poll frontend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            code="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$STAGING_FRONTEND_URL/login" || true)"
+            echo "frontend login attempt $attempt: HTTP $code"
+            if [[ "$code" == "200" ]]; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "::error::Frontend login page did not become available."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          root_response="$(curl --silent --show-error --output /dev/null --write-out "%{http_code} %{redirect_url}" "$STAGING_FRONTEND_URL/" || true)"
+          root_code="${root_response%% *}"
+          root_redirect="${root_response#* }"
+          echo "frontend unauthenticated root HTTP $root_code"
+          if [[ ! "$root_code" =~ ^30[1278]$ || "$root_redirect" != "$STAGING_FRONTEND_URL/login" ]]; then
+            echo "::error::Unauthenticated frontend root did not redirect to /login."
+            exit 1
+          fi
+
+      - name: Safe unauthenticated API smoke checks
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          protected_code="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$STAGING_BACKEND_URL/api/business/" || true)"
+          echo "unauthenticated protected endpoint HTTP $protected_code"
+          if [[ "$protected_code" != "401" && "$protected_code" != "403" ]]; then
+            echo "::error::Protected endpoint did not reject unauthenticated access."
+            exit 1
+          fi
+
+          invalid_login_code="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data '{"email":"staging-invalid@example.invalid","password":"invalid-password"}' \
+            "$STAGING_BACKEND_URL/api/auth/login" || true)"
+          echo "invalid login HTTP $invalid_login_code"
+          if [[ "$invalid_login_code" != "400" && "$invalid_login_code" != "401" ]]; then
+            echo "::error::Invalid login did not return a safe client error."
+            exit 1
+          fi
+
+      - name: Staging verification summary
+        shell: bash
+        run: |
+          {
+            echo "## Staging Verification Evidence"
+            echo ""
+            echo "- Trigger: ${{ github.event_name }}"
+            echo "- Selected ref: ${{ needs.validate.outputs.selected_ref || github.ref_name }}"
+            echo "- Resolved commit: ${{ needs.validate.outputs.commit_sha || github.sha }}"
+            echo "- Backend URL: $STAGING_BACKEND_URL"
+            echo "- Frontend URL: $STAGING_FRONTEND_URL"
+            echo "- Backend liveness: verified"
+            echo "- Backend readiness: verified"
+            echo "- Frontend login: verified"
+            echo "- Workflow run ID: ${{ github.run_id }}"
+            echo "- Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_STEP_SUMMARY"
