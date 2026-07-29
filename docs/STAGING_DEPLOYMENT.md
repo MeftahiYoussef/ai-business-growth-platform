@@ -6,11 +6,11 @@ This runbook records the live staging deployment for the AI Business Growth & Tr
 
 ## Active Architecture
 
-- Frontend: Vercel-managed Next.js deployment from `frontend/`.
-- Backend: Railway-managed Django service uploaded from local source in `django-backend/`.
+- Frontend: Vercel-managed Next.js deployment from GitHub `main`, with `frontend/` as the project root.
+- Backend: Railway-managed Django service. The live service currently runs from local-source deployment; the intended steady state is Railway GitHub autodeploy from `main`, rooted at `django-backend/`, with Wait for CI enabled.
 - Database: Railway PostgreSQL attached to the Django service.
 - AI: Groq only, model `openai/gpt-oss-20b`.
-- Secrets: platform-managed environment variables in Railway, Vercel, and GitHub.
+- Secrets: platform-managed environment variables in Railway and Vercel. GitHub Actions verifies staging without provider deployment credentials.
 
 Render is no longer the active staging backend path because Render could not fetch the private GitHub repository from the active workspace after repeated GitHub App authorization attempts. The existing Render PostgreSQL resource `ai-business-growth-postgres-staging` remains preserved and unused; no staging application data is written to it.
 
@@ -27,7 +27,7 @@ The legacy Node.js backend is not part of this deployment.
 - Vercel frontend URL: `https://ai-business-growth-platform-staging.vercel.app`
 - Preserved inactive Render database: `ai-business-growth-postgres-staging`
 
-Railway resources are usage-metered. No paid plan upgrade or payment-card action was selected during this rehearsal. The latest observed usage was approximately `$0.0315` current and `$0.0480` estimated for the active billing period.
+Railway resources are usage-metered. No paid plan upgrade or payment-card action was selected during this rehearsal. Monitor the Railway dashboard before repeated deployments or load tests.
 
 ## Backend Environment
 
@@ -185,43 +185,54 @@ Rollback rehearsal result:
 - Data preservation: the staging business, completed Groq generation, seven structured items, two linked drafts, and Django migration records remained present.
 - Latest `main` restoration: deployment `08393234-71f5-4020-9075-201a3fe61f43` completed successfully and liveness, readiness, API docs, and frontend login returned HTTP 200.
 
-## GitHub Deployment Workflow
+## Provider-Native Autodeploy
+
+Staging deployment is provider-native:
+
+- Vercel should be connected to `MeftahiYoussef/ai-business-growth-platform`, production branch `main`, root directory `frontend`, framework `nextjs`, and `NEXT_PUBLIC_API_URL=https://ai-business-growth-backend-staging-production.up.railway.app`.
+- Railway should be connected to `MeftahiYoussef/ai-business-growth-platform`, branch `main`, root directory `django-backend`, with GitHub Autodeploy enabled and Wait for CI enabled.
+- GitHub Actions validates code and verifies the live staging environment. It does not upload code to Railway or Vercel.
+
+The Vercel CLI confirmed the staging project and active deployment, but GitHub connection requires the Vercel account owner to add a GitHub Login Connection before CLI linking can complete. The CLI must not create a duplicate project; the attempted duplicate `frontend` project was removed.
+
+The Railway CLI supports `railway service source connect`, but the connected Railway account still cannot access `MeftahiYoussef/ai-business-growth-platform`. Complete this one-time dashboard action:
+
+```text
+Railway project ai-growth-staging
+-> ai-business-growth-backend-staging
+-> Settings
+-> Service Source
+-> Connect Repo
+-> MeftahiYoussef/ai-business-growth-platform
+-> Branch main
+-> Root directory django-backend
+-> Enable GitHub Autodeploy
+-> Enable Wait for CI
+```
+
+## GitHub Staging Verification Workflow
 
 Manual workflow: `.github/workflows/deploy-staging.yml`.
 
 The workflow:
 
-- runs only through `workflow_dispatch`;
+- runs through `workflow_dispatch` and successful `deployment_status` events;
 - uses the GitHub environment named `staging`;
-- accepts `git_ref`, `deploy_backend`, `deploy_frontend`, `run_smoke_tests`, and `verification_only` inputs;
-- accepts only `main`, version-style tags such as `v0.2.0-staging`, or commits reachable from `origin/main`;
+- accepts `git_ref` and `run_smoke_tests` inputs for manual verification;
+- accepts only `main`, the current same-repository workflow branch, version-style tags such as `v0.2.0-staging`, or commits reachable from `origin/main`;
 - prevents overlapping staging deployments with the `staging-deployment` concurrency group;
-- validates backend and frontend before deployment;
+- validates backend and frontend before manual verification;
 - uses PostgreSQL service validation with placeholder Groq settings;
-- deploys the Django backend to Railway through `railway up` when `verification_only=false`, `deploy_backend=true`, and a valid `RAILWAY_TOKEN` secret exists;
-- deploys the Next.js frontend to Vercel when `verification_only=false`, `deploy_frontend=true`, and a valid `VERCEL_TOKEN` secret exists;
-- verifies already-live staging only when `verification_only=true` or a deploy input is disabled;
-- fails full-deployment mode when requested deployment credentials are missing or invalid;
-- references Railway, Vercel, and URL values by secret or variable name only;
+- verifies provider-native deployments after successful deployment status events when the event matches the staging environment or known staging URLs;
+- references staging URLs through GitHub variables only;
 - fails when backend or frontend health checks fail;
-- writes a safe GitHub Actions summary with selected ref, resolved commit SHA, deployment IDs when available, health results, staging URLs, workflow run ID, and timestamp.
+- writes a safe GitHub Actions summary with trigger type, selected ref, resolved commit SHA, health results, staging URLs, workflow run ID, and timestamp.
 
 Required GitHub variables:
 
 ```text
-RAILWAY_PROJECT_ID
-RAILWAY_BACKEND_SERVICE_ID
-RAILWAY_ENVIRONMENT
-VERCEL_PROJECT_ID
 STAGING_BACKEND_URL
 STAGING_FRONTEND_URL
-```
-
-Optional GitHub secrets for active deployment:
-
-```text
-RAILWAY_TOKEN
-VERCEL_TOKEN
 ```
 
 Configured repository variables:
@@ -235,40 +246,22 @@ STAGING_BACKEND_URL
 STAGING_FRONTEND_URL
 ```
 
-Deployment credential method:
-
-- Railway: create a project token scoped to the `ai-growth-staging` project and `production` environment, then store it as the GitHub Actions secret `RAILWAY_TOKEN`.
-- Vercel: create an access token for the account or project owner that can deploy `ai-business-growth-platform-staging`, then store it as the GitHub Actions secret `VERCEL_TOKEN`.
-- Vercel deploy hooks were not selected for the current workflow because deploy hooks are Git-triggered and the current staging frontend was created from local-source deployment rather than a verified Git integration.
-
 Manual workflow inputs:
 
 ```text
 git_ref=main
-deploy_backend=true
-deploy_frontend=true
 run_smoke_tests=true
-verification_only=false
 ```
 
-Set `verification_only=true` to run validation and live health checks without requiring deployment credentials. In full-deployment mode, missing `RAILWAY_TOKEN` or `VERCEL_TOKEN` fails the corresponding deployment job and cannot masquerade as a successful deployment.
+Automatic deployment is controlled by Railway and Vercel Git integration. Do not add repository-wide Railway or Vercel tokens unless the deployment strategy changes again.
 
-Official credential creation locations:
+Manual workflow result before provider-native conversion:
 
-- Railway project token: `https://railway.com/project/71659271-cc75-46fd-9acf-1e38495561e4/settings`, project `ai-growth-staging`, project settings tokens page.
-- Railway account/workspace fallback token only if project tokens are unavailable: `https://railway.com/account/tokens`.
-- Vercel token: `https://vercel.com/account/settings/tokens`.
-
-Manual workflow result before full-deploy credentials:
-
-- Failed setup run: `30472020282`, caused by an invalid or unauthorized repository `RAILWAY_TOKEN`; the secret value was masked by GitHub and then removed.
 - Verified run: `30475037183`, conclusion `success`, commit `8bce8d4`.
 - Updated workflow verification-only run: `30488437711`, conclusion `success`, branch `chore/full-staging-deploy`.
-- Railway deploy step: skipped because no valid `RAILWAY_TOKEN` secret is currently configured.
-- Vercel deploy step: skipped because no valid `VERCEL_TOKEN` secret is currently configured.
 - Backend validation, frontend validation, live backend health, and live frontend availability checks passed.
 
-The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are currently required for verification-only staging runs. Earlier Vercel token creation returned `403 Cannot create tokens for this app`; an account owner must create the token in the Vercel dashboard before full frontend redeploys can run from GitHub Actions.
+The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are required for staging verification. Real Groq staging smoke tests remain manual and controlled; automatic post-deploy checks do not call Groq.
 
 ## Spending Controls
 
@@ -287,6 +280,6 @@ No hard workspace spending cap was configured through the CLI during this run. R
 
 - Railway is active staging; Render PostgreSQL is preserved but unused.
 - Railway resources are usage-metered; monitor usage and stop before any unwanted paid-plan requirement.
-- GitHub staging deployment currently verifies live staging unless deployment tokens/hooks are added.
+- GitHub Actions verifies live staging; provider-native autodeploy requires the one-time Railway GitHub source connection and confirmed Vercel Git integration.
 - No production deployment exists.
 - No object storage, Celery, Redis, social OAuth, billing, RAG, or social publishing is configured.
