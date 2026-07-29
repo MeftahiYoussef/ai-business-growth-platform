@@ -11,6 +11,8 @@ Django REST Framework backend for the AI Business Growth & Trend Intelligence Pl
 - Django ORM
 - django-cors-headers
 - drf-spectacular OpenAPI docs
+- Gunicorn for production WSGI serving
+- WhiteNoise for staging static assets
 
 ## Setup
 
@@ -143,6 +145,21 @@ Deployment check:
 ```bash
 DJANGO_SETTINGS_MODULE=config.settings.production USE_SQLITE=false .venv/bin/python manage.py check --deploy
 ```
+
+Production/staging start command:
+
+```bash
+gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -
+```
+
+Release commands:
+
+```bash
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
+```
+
+Static files are served through WhiteNoise in production settings with compressed manifest storage. The staging deployment target is Render for Django and PostgreSQL, paired with Vercel for the Next.js frontend. See `../docs/STAGING_DEPLOYMENT.md`.
 
 ## API Docs
 

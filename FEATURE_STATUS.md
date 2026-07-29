@@ -12,6 +12,7 @@
 | Seven-day AI content plan | Complete MVP | Structured output, quota checks, history/usage storage, explicit draft creation. |
 | PostgreSQL readiness | Complete MVP | SQLite fallback preserved; PostgreSQL settings, driver, migrations, indexes, health endpoints, and CI service configured. |
 | Health endpoints | Complete MVP | Liveness and database readiness endpoints exist under `/api/health/`. |
+| Staging deployment prep | Ready for provider setup | Render/Vercel config, Gunicorn, WhiteNoise static files, request IDs, manual staging workflow, and backup/rollback runbook are prepared. Live provider deployment is still manual. |
 | Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
@@ -32,4 +33,5 @@ No sandbox output is presented as a real provider integration.
 
 - Use PostgreSQL for shared development/staging/production. SQLite is only a local fallback.
 - Production settings require real deployment environment values for secret key, allowed hosts, CORS/CSRF origins, database connection values, and HTTPS/security headers.
+- Staging uses platform-managed secrets only. Do not commit Render, Vercel, database, Django, JWT, or Groq secrets.
 - Database backups should cover PostgreSQL data, migration history, and any future media/static upload storage. Local SQLite files are not a production backup target.
