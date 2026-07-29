@@ -12,7 +12,7 @@
 | Seven-day AI content plan | Complete MVP | Structured output, quota checks, history/usage storage, explicit draft creation. |
 | PostgreSQL readiness | Complete MVP | SQLite fallback preserved; PostgreSQL settings, driver, migrations, indexes, health endpoints, and CI service configured. |
 | Health endpoints | Complete MVP | Liveness and database readiness endpoints exist under `/api/health/`. |
-| Staging deployment rehearsal | Complete MVP | Vercel frontend, Railway Django backend, and Railway PostgreSQL are live. `v0.2.0-staging` is the Railway-compatible rollback tag. Health, auth, real Groq generation, draft conversion, duplicate prevention, backup, and isolated restore were verified. Render PostgreSQL is preserved but unused. |
+| Staging deployment rehearsal | Complete MVP | Vercel frontend, Railway Django backend, and Railway PostgreSQL are live. `v0.2.0-staging` is the Railway-compatible rollback tag. Health, auth, real Groq generation, draft conversion, duplicate prevention, backup, isolated restore, rollback, and latest-main recovery were verified. Render PostgreSQL is preserved but unused. |
 | Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
