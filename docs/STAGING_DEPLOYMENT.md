@@ -18,7 +18,7 @@ The legacy Node.js backend is not part of this deployment.
 
 ## Live Resources
 
-- Verified staging tag: `v0.2.0-staging`
+- Verified staging tag: `v0.2.0-staging` at commit `b7fee9a`
 - Railway project: `ai-growth-staging`
 - Railway backend service: `ai-business-growth-backend-staging`
 - Railway PostgreSQL service: `Postgres`
@@ -176,12 +176,14 @@ The temporary restore database service was deleted after verification.
 
 The current Railway deployment is healthy after the Railway-specific deployment configuration and database credential rotation. `v0.1.0-foundation` must not be used as the staging rollback target because it predates the Railway deployment files and would not reproduce the active local-source staging deployment safely. Do not reverse database migrations automatically during rollback.
 
-Safe rollback options for the next rehearsal:
+Rollback rehearsal result:
 
-1. Use Railway deployment history to redeploy the latest known-good Railway deployment.
-2. Use the Railway-compatible release tag `v0.2.0-staging`.
-3. Verify liveness, readiness, login, and existing records after rollback.
-4. Redeploy the latest `main` source after the rehearsal.
+- Rollback target: `v0.2.0-staging`.
+- Rollback method: local-source Railway deployment from a detached Git worktree.
+- Rollback deployment ID: `23abc90e-e6ef-4eca-ab42-6288f27ea525`.
+- Rollback health: liveness and readiness both returned HTTP 200.
+- Data preservation: the staging business, completed Groq generation, seven structured items, two linked drafts, and Django migration records remained present.
+- Latest `main` restoration: deployment `08393234-71f5-4020-9075-201a3fe61f43` completed successfully and liveness, readiness, API docs, and frontend login returned HTTP 200.
 
 ## GitHub Deployment Workflow
 
@@ -228,7 +230,15 @@ STAGING_BACKEND_URL
 STAGING_FRONTEND_URL
 ```
 
-The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. A repository-level `RAILWAY_TOKEN` secret is configured by name. Vercel token creation returned `403 Cannot create tokens for this app`, and Vercel deploy-hook creation did not produce a hook for the current local-source project; configure a Vercel Git integration, owner-created token, or deploy hook before enabling frontend redeploys from GitHub Actions.
+Manual workflow result:
+
+- Failed setup run: `30472020282`, caused by an invalid or unauthorized repository `RAILWAY_TOKEN`; the secret value was masked by GitHub and then removed.
+- Verified run: `30472299137`, conclusion `success`, commit `f4046b7`.
+- Railway deploy step: skipped because no valid `RAILWAY_TOKEN` secret is currently configured.
+- Vercel deploy step: skipped because no valid `VERCEL_TOKEN` or deploy-hook secret is currently configured.
+- Live backend, readiness, and frontend availability checks passed.
+
+The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are currently required for verification-only staging runs. Vercel token creation returned `403 Cannot create tokens for this app`, and Vercel deploy-hook creation did not produce a hook for the current local-source project; configure a Vercel Git integration, owner-created token, or deploy hook before enabling frontend redeploys from GitHub Actions.
 
 Until Vercel deployment credentials exist, `deploy-staging.yml` deploys or verifies the Railway backend and verifies the already-live Vercel frontend.
 
