@@ -193,12 +193,18 @@ The workflow:
 
 - runs only through `workflow_dispatch`;
 - uses the GitHub environment named `staging`;
+- accepts `git_ref`, `deploy_backend`, `deploy_frontend`, `run_smoke_tests`, and `verification_only` inputs;
+- accepts only `main`, version-style tags such as `v0.2.0-staging`, or commits reachable from `origin/main`;
+- prevents overlapping staging deployments with the `staging-deployment` concurrency group;
 - validates backend and frontend before deployment;
 - uses PostgreSQL service validation with placeholder Groq settings;
-- deploys the Django backend to Railway through `railway up` when Railway deployment secrets are configured;
-- verifies the already-live Railway backend when deployment secrets are not configured;
+- deploys the Django backend to Railway through `railway up` when `verification_only=false`, `deploy_backend=true`, and a valid `RAILWAY_TOKEN` secret exists;
+- deploys the Next.js frontend to Vercel when `verification_only=false`, `deploy_frontend=true`, and a valid `VERCEL_TOKEN` secret exists;
+- verifies already-live staging only when `verification_only=true` or a deploy input is disabled;
+- fails full-deployment mode when requested deployment credentials are missing or invalid;
 - references Railway, Vercel, and URL values by secret or variable name only;
-- fails when backend or frontend health checks fail.
+- fails when backend or frontend health checks fail;
+- writes a safe GitHub Actions summary with selected ref, resolved commit SHA, deployment IDs when available, health results, staging URLs, workflow run ID, and timestamp.
 
 Required GitHub variables:
 
@@ -216,7 +222,6 @@ Optional GitHub secrets for active deployment:
 ```text
 RAILWAY_TOKEN
 VERCEL_TOKEN
-VERCEL_FRONTEND_DEPLOY_HOOK_URL
 ```
 
 Configured repository variables:
@@ -230,7 +235,31 @@ STAGING_BACKEND_URL
 STAGING_FRONTEND_URL
 ```
 
-Manual workflow result:
+Deployment credential method:
+
+- Railway: create a project token scoped to the `ai-growth-staging` project and `production` environment, then store it as the GitHub Actions secret `RAILWAY_TOKEN`.
+- Vercel: create an access token for the account or project owner that can deploy `ai-business-growth-platform-staging`, then store it as the GitHub Actions secret `VERCEL_TOKEN`.
+- Vercel deploy hooks were not selected for the current workflow because deploy hooks are Git-triggered and the current staging frontend was created from local-source deployment rather than a verified Git integration.
+
+Manual workflow inputs:
+
+```text
+git_ref=main
+deploy_backend=true
+deploy_frontend=true
+run_smoke_tests=true
+verification_only=false
+```
+
+Set `verification_only=true` to run validation and live health checks without requiring deployment credentials. In full-deployment mode, missing `RAILWAY_TOKEN` or `VERCEL_TOKEN` fails the corresponding deployment job and cannot masquerade as a successful deployment.
+
+Official credential creation locations:
+
+- Railway project token: `https://railway.com/project/71659271-cc75-46fd-9acf-1e38495561e4/settings`, project `ai-growth-staging`, project settings tokens page.
+- Railway account/workspace fallback token only if project tokens are unavailable: `https://railway.com/account/tokens`.
+- Vercel token: `https://vercel.com/account/settings/tokens`.
+
+Manual workflow result before full-deploy credentials:
 
 - Failed setup run: `30472020282`, caused by an invalid or unauthorized repository `RAILWAY_TOKEN`; the secret value was masked by GitHub and then removed.
 - Verified run: `30475037183`, conclusion `success`, commit `8bce8d4`.
@@ -238,9 +267,7 @@ Manual workflow result:
 - Vercel deploy step: skipped because no valid `VERCEL_TOKEN` or deploy-hook secret is currently configured.
 - Backend validation, frontend validation, live backend health, and live frontend availability checks passed.
 
-The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are currently required for verification-only staging runs. Vercel token creation returned `403 Cannot create tokens for this app`, and Vercel deploy-hook creation did not produce a hook for the current local-source project; configure a Vercel Git integration, owner-created token, or deploy hook before enabling frontend redeploys from GitHub Actions.
-
-Until Vercel deployment credentials exist, `deploy-staging.yml` deploys or verifies the Railway backend and verifies the already-live Vercel frontend.
+The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are currently required for verification-only staging runs. Earlier Vercel token creation returned `403 Cannot create tokens for this app`; an account owner must create the token in the Vercel dashboard before full frontend redeploys can run from GitHub Actions.
 
 ## Spending Controls
 
