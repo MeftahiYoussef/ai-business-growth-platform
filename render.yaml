@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ai-business-growth-api-staging
+    name: ai-business-growth-backend-staging
     runtime: python
     rootDir: django-backend
     plan: free

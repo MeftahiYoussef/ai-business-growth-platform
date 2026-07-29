@@ -26,7 +26,7 @@ Last updated: 2026-07-29.
   - region: Oregon
   - plan: free
   - status: available
-- Render Django backend was not created because Render cannot yet fetch the private GitHub repository. The Render GitHub App must be authorized for `MeftahiYoussef/ai-business-growth-platform`.
+- Render Django backend was not created because Render still cannot fetch the private GitHub repository from this workspace. Attempts with both `https://github.com/MeftahiYoussef/ai-business-growth-platform` and `https://github.com/MeftahiYoussef/ai-business-growth-platform.git` returned Render's `repository URL is invalid or unfetchable` error.
 - Intended backend URL after service creation: `https://ai-business-growth-backend-staging.onrender.com`.
 - Vercel frontend was deployed:
   - project: `ai-business-growth-platform-staging`
@@ -39,13 +39,16 @@ Last updated: 2026-07-29.
   - `GET /login` returned HTTP 200.
   - `GET /` returned HTTP 307 to `/login`.
 - Live backend health checks, API docs, registration/login through Django, Groq generation, draft conversion, backup, restore, rollback, and manual GitHub deployment workflow remain blocked until the Render backend service can be created.
+- Direct `render psql` from the local network was blocked because the current IP address is not in the database allow list. This prevents local `pg_dump` backup and restore rehearsal until the IP allow list is updated or the commands run from an allowed network.
 
 Exact account-owner action required:
 
 1. Open `https://dashboard.render.com/account/repo-connections`.
 2. Connect GitHub if it is not connected.
 3. Install or configure the Render GitHub App with access to `MeftahiYoussef/ai-business-growth-platform`.
-4. Re-run the Render service creation using `render.yaml` or the documented service settings.
+4. Confirm the connection applies to `Meftahi's workspace`, not only a personal GitHub account.
+5. Re-run the Render service creation using `render.yaml` or the documented service settings.
+6. Add the local operator IP to the staging database allow list only when a backup or restore rehearsal must run from that network.
 
 ## Backend Environment
 
