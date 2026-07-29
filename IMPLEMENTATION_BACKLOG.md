@@ -3,7 +3,8 @@
 | Priority | Task | Files | Dependencies | Acceptance Criteria |
 | --- | --- | --- | --- | --- |
 | P0 | Add full brand profile fields to UI | onboarding/profile pages | Business model extension | All brand fields editable. |
-| P0 | Authorize Render GitHub App and deploy backend | Render dashboard | Account-owner approval for private repo access | Render can fetch `MeftahiYoussef/ai-business-growth-platform`, backend service deploys from `main`, and `/api/health/ready/` returns 200. |
+| P0 | Fix Render private-repo access and deploy backend | Render dashboard | Account-owner approval for private repo access in the active Render workspace | Render can fetch `MeftahiYoussef/ai-business-growth-platform`, backend service deploys from `main`, and `/api/health/ready/` returns 200. |
+| P0 | Allow controlled database backup access | Render PostgreSQL settings | Temporary operator IP allow-list entry or provider-supported backup | `pg_dump` can run without exposing the database URL, and restore is verified in an isolated database when the free plan allows it. |
 | P0 | Complete live staging smoke rehearsal | Render/Vercel dashboards | Backend service, deploy hooks, staging secrets | Deployed URLs pass health checks, auth, Groq seven-day plan, draft conversion, backup/restore, and rollback rehearsal. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
 | P1 | Celery/Redis jobs | Django backend | Redis | Sync/publishing/report jobs run async with retry logs. |
@@ -18,4 +19,4 @@
 - Real Groq smoke test and seven-day content-plan workflow passed with `openai/gpt-oss-20b`.
 - PostgreSQL development configuration, Compose service, CI service, health endpoints, connection persistence, SSL mode support, and database-level duplicate draft protection are implemented.
 - Staging deployment preparation is implemented for Render, Vercel, manual GitHub deployment, Gunicorn, WhiteNoise, request IDs, backup/restore documentation, and rollback documentation.
-- Live staging progress: Render PostgreSQL was created on the free plan and Vercel frontend deployed successfully. Remaining blocker: Render backend service cannot be created until the Render GitHub App has access to the private repository.
+- Live staging progress: Render PostgreSQL was created on the free plan and Vercel frontend deployed successfully. Remaining blockers: Render backend service cannot be created until the Render GitHub App has access to the private repository in the active workspace, and direct database backup requires a database allow-list update.
