@@ -19,6 +19,10 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if env_bool("USE_X
 SECURE_REFERRER_POLICY = "same-origin"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"  # noqa: F405
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 LOGGING = {
     "version": 1,

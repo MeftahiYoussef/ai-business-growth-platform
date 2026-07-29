@@ -1,0 +1,99 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref_name == 'main'
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      USE_SQLITE: "false"
+      DATABASE_NAME: business_intelligence_ci
+      DATABASE_USER: business_intelligence
+      DATABASE_PASSWORD: ci-postgres-password
+      DATABASE_HOST: 127.0.0.1
+      DATABASE_PORT: "5432"
+      DATABASE_CONN_MAX_AGE: "0"
+      DATABASE_SSLMODE: disable
+      DJANGO_SECRET_KEY: ci-placeholder-secret-key
+      AI_PROVIDER: groq
+      GROQ_API_KEY: ci-placeholder-groq-key
+      GROQ_DEFAULT_MODEL: openai/gpt-oss-20b
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: business_intelligence_ci
+          POSTGRES_USER: business_intelligence
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U business_intelligence -d business_intelligence_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Record deployment commit
+        run: echo "Deploying commit $GITHUB_SHA to staging"
+
+      - run: pip install -r django-backend/requirements.txt
+      - run: python manage.py check
+        working-directory: django-backend
+      - run: python manage.py makemigrations --check --dry-run
+        working-directory: django-backend
+      - run: python manage.py migrate --noinput
+        working-directory: django-backend
+      - run: python manage.py test
+        working-directory: django-backend
+      - run: pytest
+        working-directory: django-backend
+      - run: ruff check .
+        working-directory: django-backend
+      - run: mypy .
+        working-directory: django-backend
+
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm run test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+      - name: Trigger Render backend deploy
+        run: curl --fail --silent --show-error --request POST "$RENDER_BACKEND_DEPLOY_HOOK_URL"
+        env:
+          RENDER_BACKEND_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+
+      - name: Trigger Vercel frontend deploy
+        run: curl --fail --silent --show-error --request POST "$VERCEL_FRONTEND_DEPLOY_HOOK_URL"
+        env:
+          VERCEL_FRONTEND_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_FRONTEND_DEPLOY_HOOK_URL }}
+
+      - name: Check backend health
+        run: |
+          sleep 60
+          curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/live/"
+          curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/ready/"
+        env:
+          STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
+
+      - name: Check frontend health
+        run: curl --fail --silent --show-error "$STAGING_FRONTEND_URL/login" > /dev/null
+        env:
+          STAGING_FRONTEND_URL: ${{ secrets.STAGING_FRONTEND_URL }}

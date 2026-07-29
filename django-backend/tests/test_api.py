@@ -181,6 +181,11 @@ class ApiFlowTests(TestCase):
         self.assertEqual(unavailable.status_code, 503)
         self.assertEqual(unavailable.json(), {"status": "error"})
 
+    def test_request_id_header_is_returned_without_auth_logging_surface(self):
+        response = self.client.get("/api/health/live/", HTTP_X_REQUEST_ID="staging-smoke-request")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Request-ID"], "staging-smoke-request")
+
     def test_cross_user_resource_access_is_denied(self):
         self.register("one@example.com")
         business = self.create_business()
@@ -634,15 +639,24 @@ class ApiFlowTests(TestCase):
             provider.model = "openai/gpt-oss-20b"
             provider.generate_structured_json.return_value = result
             provider_factory.return_value = provider
-            response = self.client.post(
-                "/api/ai/content-plans/generate/",
-                {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
-                format="json",
-            )
+            with self.assertLogs("apps.ai.content_plan_service", level="INFO") as logs:
+                response = self.client.post(
+                    "/api/ai/content-plans/generate/",
+                    {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
+                    format="json",
+                )
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.data["provider"], "groq")
         self.assertEqual(response.data["model"], "openai/gpt-oss-20b")
         self.assertEqual(response.data["usage"]["input_tokens"], 111)
+        log_output = "\n".join(logs.output)
+        self.assertIn("ai_generation_completed", log_output)
+        self.assertIn("provider=groq", log_output)
+        self.assertIn("model=openai/gpt-oss-20b", log_output)
+        self.assertIn("input_tokens=111", log_output)
+        self.assertNotIn("Authorization", log_output)
+        self.assertNotIn("Bearer", log_output)
+        self.assertNotIn("GROQ_API_KEY", log_output)
         record = AIContentGeneration.objects.get(id=response.data["id"])
         self.assertEqual(record.provider_request_id, "groq-request-1")
         self.assertEqual(record.generation_parameters["finish_reason"], "stop")

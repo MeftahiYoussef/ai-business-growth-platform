@@ -1,0 +1,85 @@
+services:
+  - type: web
+    name: ai-business-growth-api-staging
+    runtime: python
+    rootDir: django-backend
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    preDeployCommand: python manage.py migrate --noinput
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -
+    healthCheckPath: /api/health/ready/
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: USE_SQLITE
+        value: "false"
+      - key: DATABASE_NAME
+        fromDatabase:
+          name: ai-business-growth-postgres-staging
+          property: database
+      - key: DATABASE_USER
+        fromDatabase:
+          name: ai-business-growth-postgres-staging
+          property: user
+      - key: DATABASE_PASSWORD
+        fromDatabase:
+          name: ai-business-growth-postgres-staging
+          property: password
+      - key: DATABASE_HOST
+        fromDatabase:
+          name: ai-business-growth-postgres-staging
+          property: host
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: ai-business-growth-postgres-staging
+          property: port
+      - key: DATABASE_CONN_MAX_AGE
+        value: "60"
+      - key: DATABASE_SSLMODE
+        value: require
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_DEFAULT_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_TIMEOUT_SECONDS
+        value: "60"
+      - key: GROQ_MAX_RETRIES
+        value: "2"
+      - key: GROQ_MAX_OUTPUT_TOKENS
+        value: "4000"
+      - key: AI_MAX_USER_DAILY_REQUESTS
+        value: "20"
+      - key: AI_MAX_BUSINESS_MONTHLY_REQUESTS
+        value: "500"
+      - key: AI_MAX_REQUEST_INPUT_LENGTH
+        value: "4000"
+      - key: AI_MAX_ADDITIONAL_INSTRUCTIONS_LENGTH
+        value: "1200"
+      - key: SECURE_SSL_REDIRECT
+        value: "true"
+      - key: SECURE_HSTS_SECONDS
+        value: "31536000"
+      - key: SECURE_HSTS_INCLUDE_SUBDOMAINS
+        value: "true"
+      - key: SECURE_HSTS_PRELOAD
+        value: "true"
+      - key: USE_X_FORWARDED_PROTO
+        value: "true"
+      - key: DJANGO_LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: ai-business-growth-postgres-staging
+    plan: free
+    databaseName: business_intelligence_staging
+    user: business_intelligence_staging

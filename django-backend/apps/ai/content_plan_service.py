@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any
 
@@ -15,6 +16,8 @@ from apps.ai.validators import validate_content_plan
 from apps.content_planner.models import ContentDraft, ContentVersion
 from apps.teams.permissions import can_write_content
 from common.utilities.access import accessible_businesses, get_owned_business
+
+logger = logging.getLogger(__name__)
 
 
 def _usage(input_tokens: int = 0, output_tokens: int = 0) -> dict[str, int]:
@@ -125,12 +128,33 @@ def generate_weekly_content_plan(
             action="content_plan_generated",
             generated_content=plan,
         )
+        logger.info(
+            "ai_generation_completed generation_id=%s business_id=%s provider=%s model=%s input_tokens=%s output_tokens=%s status=%s request_id=%s finish_reason=%s",
+            record.id,
+            business.id,
+            record.provider,
+            record.model,
+            record.usage["input_tokens"],
+            record.usage["output_tokens"],
+            record.status,
+            record.provider_request_id,
+            result.finish_reason or "",
+        )
         return record
     except Exception as exc:
         record.status = AIContentGeneration.Status.FAILED
         record.error_type = exc.__class__.__name__
         record.latency_ms = round((time.monotonic() - started) * 1000)
         record.save(update_fields=["status", "error_type", "latency_ms"])
+        logger.warning(
+            "ai_generation_failed generation_id=%s business_id=%s provider=%s model=%s status=%s error_type=%s",
+            record.id,
+            business.id,
+            record.provider,
+            record.model,
+            record.status,
+            record.error_type,
+        )
         raise
 
 
