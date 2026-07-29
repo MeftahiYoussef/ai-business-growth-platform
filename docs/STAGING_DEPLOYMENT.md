@@ -263,8 +263,9 @@ Manual workflow result before full-deploy credentials:
 
 - Failed setup run: `30472020282`, caused by an invalid or unauthorized repository `RAILWAY_TOKEN`; the secret value was masked by GitHub and then removed.
 - Verified run: `30475037183`, conclusion `success`, commit `8bce8d4`.
+- Updated workflow verification-only run: `30488437711`, conclusion `success`, branch `chore/full-staging-deploy`.
 - Railway deploy step: skipped because no valid `RAILWAY_TOKEN` secret is currently configured.
-- Vercel deploy step: skipped because no valid `VERCEL_TOKEN` or deploy-hook secret is currently configured.
+- Vercel deploy step: skipped because no valid `VERCEL_TOKEN` secret is currently configured.
 - Backend validation, frontend validation, live backend health, and live frontend availability checks passed.
 
 The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are currently required for verification-only staging runs. Earlier Vercel token creation returned `403 Cannot create tokens for this app`; an account owner must create the token in the Vercel dashboard before full frontend redeploys can run from GitHub Actions.

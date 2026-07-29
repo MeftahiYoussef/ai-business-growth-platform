@@ -185,7 +185,7 @@ Verified staging tag:
 v0.2.0-staging
 ```
 
-The manual GitHub staging workflow validates backend/frontend code and verifies live staging health. Full-deployment mode uploads a fresh Railway deployment when `RAILWAY_TOKEN` is configured and deploys Vercel when `VERCEL_TOKEN` is configured. Missing credentials fail requested deployment jobs; use `verification_only=true` to validate and check the live staging URLs without deploying. Public staging URLs and platform IDs are stored as GitHub variables. The verified workflow run `30475037183` passed in verification-only mode.
+The manual GitHub staging workflow validates backend/frontend code and verifies live staging health. Full-deployment mode uploads a fresh Railway deployment when `RAILWAY_TOKEN` is configured and deploys Vercel when `VERCEL_TOKEN` is configured. Missing credentials fail requested deployment jobs; use `verification_only=true` to validate and check the live staging URLs without deploying. Public staging URLs and platform IDs are stored as GitHub variables. The updated workflow run `30488437711` passed in verification-only mode from PR #8.
 
 See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, rollback limits, and Railway usage controls.
 
