@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix frontend && npm install --prefix backend && cd django-backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:django": "cd django-backend && .venv/bin/python manage.py runserver 8000",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:frontend": "npm run test --prefix frontend",
+    "test:backend": "npm run test --prefix backend",
+    "test:django": "cd django-backend && .venv/bin/python manage.py test",
+    "lint:django": "cd django-backend && .venv/bin/ruff check .",
+    "migrate:django": "cd django-backend && .venv/bin/python manage.py migrate",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "typecheck:frontend": "npm run typecheck --prefix frontend"
+  }
+}

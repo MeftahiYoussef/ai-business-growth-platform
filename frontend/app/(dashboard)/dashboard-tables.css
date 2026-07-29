@@ -1,0 +1,82 @@
+.toolbar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.toolbar input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  flex: 1;
+  min-height: 36px;
+}
+
+.desktop-table {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  padding: 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+td button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+
+.mobile-cards {
+  display: none;
+}
+
+.competitor-card {
+  display: grid;
+  gap: 8px;
+}
+
+.competitor-card span {
+  color: var(--muted);
+}
+
+.dialog-backdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 90;
+}
+
+.dialog {
+  display: grid;
+  gap: 14px;
+  max-width: 460px;
+  width: 100%;
+}
+
+@media (max-width: 780px) {
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-cards {
+    display: grid;
+    gap: 14px;
+  }
+}

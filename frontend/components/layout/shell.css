@@ -1,0 +1,137 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 268px;
+  padding: 18px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.brand strong {
+  font-size: 22px;
+}
+
+.brand-mark {
+  align-items: center;
+  background: linear-gradient(135deg, #7c3aed, #06b6d4);
+  border-radius: 14px;
+  color: #fff;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.side-nav {
+  display: grid;
+  gap: 6px;
+  margin-top: 30px;
+}
+
+.nav-link {
+  align-items: center;
+  border-radius: 14px;
+  color: var(--muted);
+  display: flex;
+  font-weight: 600;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 14px;
+}
+
+.nav-link.active {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  color: var(--text);
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-height: 74px;
+  padding: 0 28px;
+}
+
+.topbar h1 {
+  font-size: 16px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 28px;
+  width: 100%;
+}
+
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    display: block;
+    padding-bottom: 78px;
+  }
+
+  .sidebar,
+  .topbar {
+    display: none;
+  }
+
+  .content {
+    padding: 18px 16px;
+  }
+
+  .bottom-nav {
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    left: 0;
+    min-height: 72px;
+    position: fixed;
+    right: 0;
+    z-index: 50;
+  }
+
+  .bottom-link {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .bottom-link.active {
+    color: var(--text);
+  }
+}
