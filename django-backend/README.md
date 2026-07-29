@@ -185,7 +185,7 @@ Verified staging tag:
 v0.2.0-staging
 ```
 
-Staging deployment is provider-native. Railway and Vercel should autodeploy from GitHub `main` after CI, while the GitHub staging workflow validates backend/frontend code and verifies live staging health. Public staging URLs and platform IDs are stored as GitHub variables. The updated workflow run `30488437711` passed in verification-only mode from PR #8 before the provider-native workflow conversion.
+Staging deployment is provider-native. Railway and Vercel should autodeploy from GitHub `main` after CI, while the GitHub staging workflow validates backend/frontend code and verifies live staging health. Public staging URLs and platform IDs are stored as GitHub variables. PR #8 merged the provider-native verification workflow, final main CI passed, and the main staging verification run `30491459546` passed. Railway and Vercel still require one-time account-owner GitHub connection steps before automatic provider deployments can be claimed.
 
 See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, rollback limits, and Railway usage controls.
 

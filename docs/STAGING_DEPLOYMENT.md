@@ -193,7 +193,7 @@ Staging deployment is provider-native:
 - Railway should be connected to `MeftahiYoussef/ai-business-growth-platform`, branch `main`, root directory `django-backend`, with GitHub Autodeploy enabled and Wait for CI enabled.
 - GitHub Actions validates code and verifies the live staging environment. It does not upload code to Railway or Vercel.
 
-The Vercel CLI confirmed the staging project and active deployment, but GitHub connection requires the Vercel account owner to add a GitHub Login Connection before CLI linking can complete. The CLI must not create a duplicate project; the attempted duplicate `frontend` project was removed.
+The Vercel CLI confirmed the staging project and active deployment, but GitHub connection requires the Vercel account owner to add a GitHub Login Connection before CLI linking can complete. The CLI must not create a duplicate project; the attempted duplicate `frontend` project was removed. After PR #8 merged, Vercel deployment history still showed only the earlier local-source deployments, so Vercel GitHub autodeploy is not yet verified.
 
 The Railway CLI supports `railway service source connect`, but the connected Railway account still cannot access `MeftahiYoussef/ai-business-growth-platform`. Complete this one-time dashboard action:
 
@@ -209,6 +209,8 @@ Railway project ai-growth-staging
 -> Enable GitHub Autodeploy
 -> Enable Wait for CI
 ```
+
+After PR #8 merged, Railway deployment history still showed the existing local-source deployment `08393234-71f5-4020-9075-201a3fe61f43`; no GitHub-triggered Railway deployment was created because repository access is still unavailable to Railway.
 
 ## GitHub Staging Verification Workflow
 
@@ -255,10 +257,13 @@ run_smoke_tests=true
 
 Automatic deployment is controlled by Railway and Vercel Git integration. Do not add repository-wide Railway or Vercel tokens unless the deployment strategy changes again.
 
-Manual workflow result before provider-native conversion:
+Manual workflow results:
 
 - Verified run: `30475037183`, conclusion `success`, commit `8bce8d4`.
 - Updated workflow verification-only run: `30488437711`, conclusion `success`, branch `chore/full-staging-deploy`.
+- Provider-native workflow run from PR #8: `30490612360`, conclusion `success`, commit `47d73d2`.
+- Final main CI after PR #8 merge: `30491347049`, conclusion `success`, merge commit `4eff4ca`.
+- Main staging verification run after PR #8 merge: `30491459546`, conclusion `success`, commit `4eff4ca`.
 - Backend validation, frontend validation, live backend health, and live frontend availability checks passed.
 
 The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. No repository Actions secrets are required for staging verification. Real Groq staging smoke tests remain manual and controlled; automatic post-deploy checks do not call Groq.

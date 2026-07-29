@@ -5,6 +5,7 @@
 | P0 | Add full brand profile fields to UI | onboarding/profile pages | Business model extension | All brand fields editable. |
 | P0 | Monitor Railway staging usage | Railway dashboard | Active Railway staging services | Usage remains within the intended staging budget and no paid plan upgrade is selected without approval. |
 | P0 | Complete Railway GitHub source connection | Railway dashboard | GitHub App access to the private repository | Connect `ai-business-growth-backend-staging` to `MeftahiYoussef/ai-business-growth-platform`, branch `main`, root `django-backend`, with Autodeploy and Wait for CI enabled. |
+| P0 | Complete Vercel GitHub connection | Vercel dashboard | GitHub Login Connection for repository owner | Connect `ai-business-growth-platform-staging` to `MeftahiYoussef/ai-business-growth-platform`, production branch `main`, root `frontend`, and keep `NEXT_PUBLIC_API_URL` pointed at the Railway backend. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
 | P1 | Celery/Redis jobs | Django backend | Redis | Sync/publishing/report jobs run async with retry logs. |
 | P1 | Scheduled publication | `apps/content_planner` | Provider APIs | Approved scheduled posts publish or fail with retry. |
