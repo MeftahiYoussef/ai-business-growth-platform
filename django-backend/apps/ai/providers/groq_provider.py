@@ -21,6 +21,15 @@ from .base import AIProviderResult, BaseAIProvider
 logger = logging.getLogger(__name__)
 
 
+def _is_json_schema_validation_error(exc: APIStatusError) -> bool:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict) and error.get("code") == "json_validate_failed":
+            return True
+    return "json_validate_failed" in str(exc)
+
+
 class GroqProvider(BaseAIProvider):
     name = "groq"
 
@@ -123,24 +132,63 @@ class GroqProvider(BaseAIProvider):
         if response_format is not None:
             kwargs["response_format"] = response_format
 
-        try:
-            response = self.client.chat.completions.create(**kwargs)
-        except APITimeoutError as exc:
-            logger.warning("Groq request timed out")
-            raise AITimeoutError("The AI provider timed out") from exc
-        except RateLimitError as exc:
-            logger.warning("Groq rate limit reached")
-            raise AIRateLimitError("The AI provider rate limit was reached") from exc
-        except AuthenticationError as exc:
-            logger.warning("Groq authentication failed")
-            raise AIProviderError("The AI provider request failed") from exc
-        except (APIConnectionError, APIStatusError, APIError) as exc:
-            status_code = getattr(exc, "status_code", None)
-            logger.warning("Groq provider error status=%s", status_code)
-            raise AIProviderError("The AI provider request failed") from exc
-        except Exception as exc:
-            logger.exception("Unexpected Groq provider failure")
-            raise AIProviderError("The AI provider request failed") from exc
+        attempts = [kwargs]
+        response = None
+        for attempt_index, attempt_kwargs in enumerate(attempts):
+            try:
+                response = self.client.chat.completions.create(**attempt_kwargs)
+                break
+            except APITimeoutError as exc:
+                logger.warning("Groq request timed out")
+                raise AITimeoutError("The AI provider timed out") from exc
+            except RateLimitError as exc:
+                logger.warning("Groq rate limit reached")
+                raise AIRateLimitError("The AI provider rate limit was reached") from exc
+            except AuthenticationError as exc:
+                logger.warning("Groq authentication failed")
+                raise AIProviderError("The AI provider request failed") from exc
+            except APIStatusError as exc:
+                status_code = getattr(exc, "status_code", None)
+                if (
+                    response_format is not None
+                    and attempt_index == 0
+                    and status_code == 400
+                    and _is_json_schema_validation_error(exc)
+                ):
+                    retry_kwargs = {**kwargs, "temperature": 0.2}
+                    retry_kwargs["messages"] = [
+                        {
+                            "role": "system",
+                            "content": (
+                                f"{system} The JSON Schema is strict. Satisfy every required field, enum, const, "
+                                "minItems and maxItems rule exactly."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                f"{user}\n\nReturn exactly seven items in the items array. "
+                                "Use day_number values 1, 2, 3, 4, 5, 6 and 7 exactly once."
+                            ),
+                        },
+                    ]
+                    if "reasoning_effort" in retry_kwargs:
+                        retry_kwargs["reasoning_effort"] = "low"
+                    attempts.append(retry_kwargs)
+                    logger.warning("Groq structured response failed JSON schema validation; retrying once")
+                    continue
+                logger.warning("Groq provider error status=%s", status_code)
+                raise AIProviderError("The AI provider request failed") from exc
+            except (APIConnectionError, APIError) as exc:
+                status_code = getattr(exc, "status_code", None)
+                logger.warning("Groq provider error status=%s", status_code)
+                raise AIProviderError("The AI provider request failed") from exc
+            except Exception as exc:
+                logger.exception("Unexpected Groq provider failure")
+                raise AIProviderError("The AI provider request failed") from exc
+
+        if response is None:
+            raise AIProviderError("The AI provider request failed")
 
         choice = response.choices[0] if getattr(response, "choices", None) else None
         message = getattr(choice, "message", None)

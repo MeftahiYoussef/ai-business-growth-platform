@@ -2,6 +2,7 @@ from django.urls import include, path
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
+from apps.ai.views import ContentPlanCreateDraftsView, ContentPlanGenerateView
 from apps.analyses.views import AnalysisView
 from apps.businesses.views import BusinessCollectionView
 from apps.competitors.views import CompetitorListCreateView
@@ -39,6 +40,8 @@ urlpatterns = [
     path("api/feedback", schema_excluded(FeedbackView)),
     path("api/reports", schema_excluded(ReportView)),
     path("api/notifications", schema_excluded(NotificationView)),
+    path("api/ai/content-plans/generate", schema_excluded(ContentPlanGenerateView)),
+    path("api/ai/content-plans/<str:generation_id>/create-drafts", schema_excluded(ContentPlanCreateDraftsView)),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/business/", include("apps.businesses.urls")),
     path("api/competitors/", include("apps.competitors.urls")),
