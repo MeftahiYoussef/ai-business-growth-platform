@@ -22,6 +22,15 @@ jobs:
       AI_PROVIDER: groq
       GROQ_API_KEY: ci-placeholder-groq-key
       GROQ_DEFAULT_MODEL: openai/gpt-oss-20b
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_BACKEND_SERVICE_ID: ${{ vars.RAILWAY_BACKEND_SERVICE_ID }}
+      RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_FRONTEND_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_FRONTEND_DEPLOY_HOOK_URL }}
+      STAGING_BACKEND_URL: ${{ vars.STAGING_BACKEND_URL }}
+      STAGING_FRONTEND_URL: ${{ vars.STAGING_FRONTEND_URL }}
     services:
       postgres:
         image: postgres:16
@@ -47,6 +56,11 @@ jobs:
 
       - name: Record deployment commit
         run: echo "Deploying commit $GITHUB_SHA to staging"
+
+      - name: Validate staging metadata
+        run: |
+          test -n "$STAGING_BACKEND_URL"
+          test -n "$STAGING_FRONTEND_URL"
 
       - run: pip install -r django-backend/requirements.txt
       - run: python manage.py check
@@ -76,9 +90,11 @@ jobs:
         working-directory: frontend
 
       - name: Install Railway CLI
+        if: env.RAILWAY_TOKEN != '' && env.RAILWAY_PROJECT_ID != '' && env.RAILWAY_BACKEND_SERVICE_ID != ''
         run: npm install --global @railway/cli
 
       - name: Deploy Railway backend
+        if: env.RAILWAY_TOKEN != '' && env.RAILWAY_PROJECT_ID != '' && env.RAILWAY_BACKEND_SERVICE_ID != ''
         working-directory: django-backend
         run: >
           railway up
@@ -88,26 +104,29 @@ jobs:
           --detach
           --yes
           --message "GitHub Actions $GITHUB_SHA"
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-          RAILWAY_BACKEND_SERVICE_ID: ${{ secrets.RAILWAY_BACKEND_SERVICE_ID }}
-          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
 
-      - name: Trigger Vercel frontend deploy
+      - name: Skip Railway deploy
+        if: env.RAILWAY_TOKEN == '' || env.RAILWAY_PROJECT_ID == '' || env.RAILWAY_BACKEND_SERVICE_ID == ''
+        run: echo "Railway deployment credentials are not configured; verifying the existing staging backend."
+
+      - name: Deploy Vercel frontend
+        if: env.VERCEL_TOKEN != '' && env.VERCEL_PROJECT_ID != ''
+        working-directory: frontend
+        run: npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" --project "$VERCEL_PROJECT_ID"
+
+      - name: Trigger Vercel frontend deploy hook
+        if: env.VERCEL_TOKEN == '' && env.VERCEL_FRONTEND_DEPLOY_HOOK_URL != ''
         run: curl --fail --silent --show-error --request POST "$VERCEL_FRONTEND_DEPLOY_HOOK_URL"
-        env:
-          VERCEL_FRONTEND_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_FRONTEND_DEPLOY_HOOK_URL }}
+
+      - name: Skip Vercel deploy
+        if: env.VERCEL_TOKEN == '' && env.VERCEL_FRONTEND_DEPLOY_HOOK_URL == ''
+        run: echo "Vercel deployment hook is not configured; verifying the existing staging frontend."
 
       - name: Check backend health
         run: |
           sleep 60
           curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/live/"
           curl --fail --silent --show-error "$STAGING_BACKEND_URL/api/health/ready/"
-        env:
-          STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
 
       - name: Check frontend health
         run: curl --fail --silent --show-error "$STAGING_FRONTEND_URL/login" > /dev/null
-        env:
-          STAGING_FRONTEND_URL: ${{ secrets.STAGING_FRONTEND_URL }}
