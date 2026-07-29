@@ -149,7 +149,7 @@ DJANGO_SETTINGS_MODULE=config.settings.production USE_SQLITE=false .venv/bin/pyt
 Production/staging start command:
 
 ```bash
-gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -
+sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -"
 ```
 
 Release commands:
@@ -159,7 +159,7 @@ python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 ```
 
-Static files are served through WhiteNoise in production settings with compressed manifest storage. The staging deployment target is Render for Django and PostgreSQL, paired with Vercel for the Next.js frontend. See `../docs/STAGING_DEPLOYMENT.md`.
+Static files are served through WhiteNoise in production settings with compressed manifest storage. The staging deployment target is Render for Django and PostgreSQL, paired with Vercel for the Next.js frontend. Free Render web services run migrations at startup before Gunicorn because `preDeployCommand` is not supported on the free plan. See `../docs/STAGING_DEPLOYMENT.md`.
 
 ## API Docs
 
