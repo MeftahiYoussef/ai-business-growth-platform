@@ -18,6 +18,7 @@ The legacy Node.js backend is not part of this deployment.
 
 ## Live Resources
 
+- Verified staging tag: `v0.2.0-staging`
 - Railway project: `ai-growth-staging`
 - Railway backend service: `ai-business-growth-backend-staging`
 - Railway PostgreSQL service: `Postgres`
@@ -26,7 +27,7 @@ The legacy Node.js backend is not part of this deployment.
 - Vercel frontend URL: `https://ai-business-growth-platform-staging.vercel.app`
 - Preserved inactive Render database: `ai-business-growth-postgres-staging`
 
-Railway resources are usage-metered. No paid plan upgrade or payment-card action was selected during this rehearsal.
+Railway resources are usage-metered. No paid plan upgrade or payment-card action was selected during this rehearsal. The latest observed usage was approximately `$0.0315` current and `$0.0480` estimated for the active billing period.
 
 ## Backend Environment
 
@@ -173,12 +174,12 @@ The temporary restore database service was deleted after verification.
 
 ## Rollback
 
-The current Railway deployment is healthy after the Railway-specific deployment configuration and database credential rotation. A rollback to `v0.1.0-foundation` was not executed because that tag predates the Railway deployment files and would not reproduce the active local-source staging deployment safely. Do not reverse database migrations automatically during rollback.
+The current Railway deployment is healthy after the Railway-specific deployment configuration and database credential rotation. `v0.1.0-foundation` must not be used as the staging rollback target because it predates the Railway deployment files and would not reproduce the active local-source staging deployment safely. Do not reverse database migrations automatically during rollback.
 
 Safe rollback options for the next rehearsal:
 
 1. Use Railway deployment history to redeploy the latest known-good Railway deployment.
-2. Create a Railway-compatible release tag after this branch is merged.
+2. Use the Railway-compatible release tag `v0.2.0-staging`.
 3. Verify liveness, readiness, login, and existing records after rollback.
 4. Redeploy the latest `main` source after the rehearsal.
 
@@ -192,32 +193,62 @@ The workflow:
 - uses the GitHub environment named `staging`;
 - validates backend and frontend before deployment;
 - uses PostgreSQL service validation with placeholder Groq settings;
-- deploys the Django backend to Railway through `railway up`;
+- deploys the Django backend to Railway through `railway up` when Railway deployment secrets are configured;
+- verifies the already-live Railway backend when deployment secrets are not configured;
 - references Railway, Vercel, and URL values by secret or variable name only;
 - fails when backend or frontend health checks fail.
 
-Required GitHub secrets:
+Required GitHub variables:
 
 ```text
-RAILWAY_TOKEN
 RAILWAY_PROJECT_ID
 RAILWAY_BACKEND_SERVICE_ID
-VERCEL_FRONTEND_DEPLOY_HOOK_URL
+RAILWAY_ENVIRONMENT
+VERCEL_PROJECT_ID
 STAGING_BACKEND_URL
 STAGING_FRONTEND_URL
 ```
 
-Optional GitHub variable:
+Optional GitHub secrets for active deployment:
 
 ```text
-RAILWAY_ENVIRONMENT=production
+RAILWAY_TOKEN
+VERCEL_TOKEN
+VERCEL_FRONTEND_DEPLOY_HOOK_URL
 ```
 
-The GitHub `staging` environment exists, but no deployment secrets are configured. The current GitHub plan rejected environment wait-timer protection rules, so manual approval/protection should be added later if the plan supports it. The manual workflow should not be run until the required secret values are configured.
+Configured repository variables:
+
+```text
+RAILWAY_PROJECT_ID
+RAILWAY_BACKEND_SERVICE_ID
+RAILWAY_ENVIRONMENT
+VERCEL_PROJECT_ID
+STAGING_BACKEND_URL
+STAGING_FRONTEND_URL
+```
+
+The GitHub `staging` environment exists, but environment wait-timer protection was rejected by the current GitHub plan. A repository-level `RAILWAY_TOKEN` secret is configured by name. Vercel token creation returned `403 Cannot create tokens for this app`, and Vercel deploy-hook creation did not produce a hook for the current local-source project; configure a Vercel Git integration, owner-created token, or deploy hook before enabling frontend redeploys from GitHub Actions.
+
+Until Vercel deployment credentials exist, `deploy-staging.yml` deploys or verifies the Railway backend and verifies the already-live Vercel frontend.
+
+## Spending Controls
+
+Railway reported usage-metered resources with one backend replica and one PostgreSQL service. Keep staging conservative:
+
+- one backend replica;
+- `WEB_CONCURRENCY=1`;
+- avoid redeploy loops;
+- keep backup dumps outside the repository;
+- monitor Railway usage regularly;
+- configure budget notifications or hard limits in Railway if the workspace plan supports them.
+
+No hard workspace spending cap was configured through the CLI during this run. Railway reported `usageLimit: null` and rejected low `$0.50/$1.00` and `$1/$2` workspace limits because compute alerts must be whole-dollar values of at least `$5` or exactly `$0`. A `$5` limit was not configured without explicit approval for that exposure.
 
 ## Remaining Limits
 
 - Railway is active staging; Render PostgreSQL is preserved but unused.
 - Railway resources are usage-metered; monitor usage and stop before any unwanted paid-plan requirement.
+- GitHub staging deployment currently verifies live staging unless deployment tokens/hooks are added.
 - No production deployment exists.
 - No object storage, Celery, Redis, social OAuth, billing, RAG, or social publishing is configured.

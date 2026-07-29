@@ -179,7 +179,15 @@ Active staging frontend:
 https://ai-business-growth-platform-staging.vercel.app
 ```
 
-See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, and rollback limits.
+Verified staging tag:
+
+```text
+v0.2.0-staging
+```
+
+The manual GitHub staging workflow validates backend/frontend code and verifies live staging health. It uploads a fresh Railway deployment only when `RAILWAY_TOKEN` is configured as a GitHub secret. It deploys Vercel only when `VERCEL_TOKEN` or `VERCEL_FRONTEND_DEPLOY_HOOK_URL` is configured; otherwise it verifies the existing Vercel staging frontend. Public staging URLs and platform IDs are stored as GitHub variables.
+
+See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, rollback limits, and Railway usage controls.
 
 ## API Docs
 
