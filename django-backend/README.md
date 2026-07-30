@@ -13,6 +13,7 @@ Django REST Framework backend for the AI Business Growth & Trend Intelligence Pl
 - drf-spectacular OpenAPI docs
 - Gunicorn for production WSGI serving
 - WhiteNoise for staging static assets
+- Celery with Redis for asynchronous AI jobs
 
 ## Setup
 
@@ -111,6 +112,45 @@ True
 
 If Groq returns rate-limit errors, the API responds with `429`. Free-tier limits may change; reduce request frequency or update the GroqCloud plan.
 
+## Asynchronous AI Generation
+
+The weekly content-plan API now supports an asynchronous queue path while the existing synchronous endpoint remains available:
+
+- Synchronous: `POST /api/ai/content-plans/generate/`
+- Asynchronous queue: `POST /api/ai/content-plans/queue/`
+- Status polling: `GET /api/ai/content-plans/<generation_id>/status/`
+
+The queue endpoint validates the authenticated user, business access, input, and quotas before creating an `AIContentGeneration` with `status=queued`. It enqueues Celery only after the database transaction commits and passes only the generation UUID to the worker. The database record remains the durable source of product status: `queued`, `running`, `retrying`, `completed`, `failed`, and `cancelled`.
+
+Use `Idempotency-Key` on queue requests to prevent duplicate submissions. Keys are scoped to the authenticated user and business. Reusing the same key with the same request returns the existing generation; reusing it with a different request returns `409`.
+
+Local Redis and worker:
+
+```bash
+docker compose up -d postgres redis
+CELERY_TASK_ALWAYS_EAGER=false AI_ASYNC_CONTENT_PLAN_ENABLED=true celery -A config worker --loglevel=INFO --concurrency=1
+```
+
+Useful local settings:
+
+```env
+AI_ASYNC_CONTENT_PLAN_ENABLED=true
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+CELERY_TASK_ALWAYS_EAGER=false
+CELERY_TASK_EAGER_PROPAGATES=true
+CELERY_WORKER_PREFETCH_MULTIPLIER=1
+CELERY_TASK_ACKS_LATE=true
+```
+
+Tests can run without an external Redis service by setting `CELERY_TASK_ALWAYS_EAGER=true`.
+
+Opt-in Redis broker integration test:
+
+```bash
+RUN_REDIS_INTEGRATION=true USE_SQLITE=false CELERY_TASK_ALWAYS_EAGER=false .venv/bin/pytest tests/test_celery_integration.py
+```
+
 ## Commands
 
 ```bash
@@ -198,7 +238,7 @@ See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test result
 ## Health Endpoints
 
 - `GET /api/health/live/` returns minimal liveness JSON.
-- `GET /api/health/ready/` verifies database connectivity only. It does not call Groq or expose settings.
+- `GET /api/health/ready/` verifies database connectivity. When `AI_ASYNC_CONTENT_PLAN_ENABLED=true` and Celery eager mode is off, readiness also verifies Redis connectivity. It does not call Groq or expose settings.
 
 ## CI
 

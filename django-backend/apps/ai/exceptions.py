@@ -20,3 +20,7 @@ class AIRateLimitError(AIError):
 
 class AITimeoutError(AIError):
     status_code = 504
+
+
+class AIIdempotencyConflictError(AIError):
+    status_code = 409

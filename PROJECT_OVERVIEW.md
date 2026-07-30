@@ -28,6 +28,7 @@ AI Business Growth & Trend Intelligence Platform is a SaaS workspace for social 
 - Frontend: Next.js App Router, TypeScript, server route handlers, httpOnly auth cookie.
 - Backend: Django REST Framework, Simple JWT, Django ORM.
 - Database target: PostgreSQL. Local verification can use SQLite with `USE_SQLITE=true`; PostgreSQL mode uses backend-only `DATABASE_*` variables and the `psycopg` driver.
+- Async jobs: Celery with Redis broker/result backend for queued AI content-plan generation. PostgreSQL remains the durable source of generation state and results.
 - AI: provider-neutral service layer with Groq as the only active concrete provider.
 - Social integrations: provider model with sandbox provider; real OAuth credentials are environment-driven future work.
 
@@ -39,6 +40,7 @@ AI Business Growth & Trend Intelligence Platform is a SaaS workspace for social 
 - Analytics summary.
 - AI content studio with generation history.
 - Structured seven-day AI content plan generation with explicit draft conversion.
+- Asynchronous seven-day plan queueing and status polling behind deployment flags.
 - Content drafts, versioning, review workflow, and scheduling.
 - Competitor comparison.
 - Reports and in-app notifications.
@@ -50,5 +52,6 @@ AI Business Growth & Trend Intelligence Platform is a SaaS workspace for social 
 - Health checks: `GET /api/health/live/` confirms the process is running; `GET /api/health/ready/` verifies database connectivity and never calls Groq.
 - Production settings live in `config.settings.production` and require explicit hosts, secret key, restricted CORS/CSRF origins, HTTPS cookie/security settings, static root, structured logging, and PostgreSQL SSL configuration.
 - CI runs backend checks/tests/static analysis against PostgreSQL and frontend lint/type/test/build without a real Groq key.
+- Local async development starts Compose `postgres` and `redis`, then runs a Celery worker with `celery -A config worker --loglevel=INFO --concurrency=1`. Tests use Celery eager mode unless a live Redis worker is being verified.
 - Staging deployment is provider-native: Vercel and Railway should autodeploy from GitHub `main` after CI, while `.github/workflows/deploy-staging.yml` validates selected refs and verifies live staging health. The verification workflow is live; Railway and Vercel still require one-time account-owner GitHub connection steps before automatic provider deployments can be claimed.
 - Active staging: Vercel for the Next.js frontend, Railway for the Django backend, and Railway PostgreSQL. Current URLs are `https://ai-business-growth-platform-staging.vercel.app` and `https://ai-business-growth-backend-staging-production.up.railway.app`. Verified staging tag: `v0.2.0-staging`; rollback to that tag and restoration of latest `main` were rehearsed without reversing migrations. The Render PostgreSQL resource remains preserved but unused because Render private-repository access remained blocked.

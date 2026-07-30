@@ -19,7 +19,10 @@ Default:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false
 ```
+
+Set `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` only when the Django backend has Redis and a Celery worker available. This switches the seven-day content-plan UI to queue the request, poll the backend status endpoint, and render the completed plan when the worker finishes. Redis, Celery, database, Django, and Groq secrets must never use `NEXT_PUBLIC_` variables.
 
 ## Run
 
@@ -83,3 +86,5 @@ Client-side data requests go through `/api/backend/*`, which attaches the cookie
 ## Deployment
 
 Set `NEXT_PUBLIC_API_URL` to the deployed Django backend origin. Use HTTPS in production so the auth cookie can use `Secure`.
+
+The staging frontend currently keeps `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` until the Railway Redis and worker services are explicitly approved and deployed.
