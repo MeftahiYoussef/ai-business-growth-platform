@@ -15,6 +15,16 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PUBLISHED_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   mongodb:
     image: mongo:7
     profiles: ["migration"]
@@ -37,12 +47,17 @@ services:
       DATABASE_PORT: "5432"
       DATABASE_CONN_MAX_AGE: "60"
       DATABASE_SSLMODE: prefer
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      AI_ASYNC_CONTENT_PLAN_ENABLED: ${AI_ASYNC_CONTENT_PLAN_ENABLED:-false}
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       CSRF_TRUSTED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:

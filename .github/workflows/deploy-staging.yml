@@ -52,6 +52,9 @@ jobs:
       AI_PROVIDER: groq
       GROQ_API_KEY: ci-placeholder-groq-key
       GROQ_DEFAULT_MODEL: openai/gpt-oss-20b
+      AI_ASYNC_CONTENT_PLAN_ENABLED: "false"
+      CELERY_TASK_ALWAYS_EAGER: "true"
+      CELERY_TASK_EAGER_PROPAGATES: "true"
     services:
       postgres:
         image: postgres:16
