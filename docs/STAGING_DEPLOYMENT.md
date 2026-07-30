@@ -9,6 +9,7 @@ This runbook records the live staging deployment for the AI Business Growth & Tr
 - Frontend: Vercel-managed Next.js deployment from GitHub `main`, with `frontend/` as the project root.
 - Backend: Railway-managed Django service. The live service currently runs from local-source deployment; the intended steady state is Railway GitHub autodeploy from `main`, rooted at `django-backend/`, with Wait for CI enabled.
 - Database: Railway PostgreSQL attached to the Django service.
+- Async queue: Railway Redis plus a private Celery worker service for queued AI content-plan generation.
 - AI: Groq only, model `openai/gpt-oss-20b`.
 - Secrets: platform-managed environment variables in Railway and Vercel. GitHub Actions verifies staging without provider deployment credentials.
 
@@ -22,6 +23,8 @@ The legacy Node.js backend is not part of this deployment.
 - Railway project: `ai-growth-staging`
 - Railway backend service: `ai-business-growth-backend-staging`
 - Railway PostgreSQL service: `Postgres`
+- Railway Redis service: `Redis`
+- Railway Celery worker service: `ai-business-growth-celery-worker-staging`
 - Railway backend URL: `https://ai-business-growth-backend-staging-production.up.railway.app`
 - Vercel project: `ai-business-growth-platform-staging`
 - Vercel frontend URL: `https://ai-business-growth-platform-staging.vercel.app`
@@ -212,9 +215,9 @@ Railway project ai-growth-staging
 
 After PR #8 merged, Railway deployment history still showed the existing local-source deployment `08393234-71f5-4020-9075-201a3fe61f43`; no GitHub-triggered Railway deployment was created because repository access is still unavailable to Railway.
 
-## Celery And Redis Async AI Preparation
+## Celery And Redis Async AI Staging
 
-Asynchronous seven-day content-plan generation is prepared in the Django backend and frontend, but it is not yet enabled on live Railway staging. The current live staging deployment continues to use the verified synchronous Groq workflow until a Redis service and Celery worker are approved.
+Asynchronous seven-day content-plan generation is enabled on the live Railway backend and verified with a private Railway Redis service and a private Celery worker. The Vercel frontend feature flag remains disabled, so the public staging UI continues to use the synchronous flow until a separate frontend rollout decision.
 
 Prepared lifecycle:
 
@@ -227,20 +230,20 @@ client queues request
 -> frontend polls /api/ai/content-plans/<generation_id>/status/
 ```
 
-Required Railway services for a future enabled staging rollout:
+Active Railway services:
 
 - existing Django web service: `ai-business-growth-backend-staging`
 - existing Railway PostgreSQL service: `Postgres`
-- new private Redis service, only after cost/plan approval
-- new private Celery worker service using the same Django source and no public domain
+- private Redis service: `Redis`
+- private Celery worker service: `ai-business-growth-celery-worker-staging`
 
-Expected future worker command:
+Worker command:
 
 ```bash
-celery -A config worker --loglevel=INFO --concurrency=1
+celery -A config worker --loglevel=INFO --concurrency=1 --uid=nobody
 ```
 
-Expected future environment variables:
+Backend and worker async variables:
 
 ```env
 AI_ASYNC_CONTENT_PLAN_ENABLED=true
@@ -251,9 +254,18 @@ CELERY_WORKER_PREFETCH_MULTIPLIER=1
 CELERY_TASK_ACKS_LATE=true
 ```
 
-The frontend flag `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` should be enabled only after Redis readiness and the worker are deployed. Do not place Redis, database, Django, JWT, or Groq secrets in Vercel or any `NEXT_PUBLIC_` variable.
+The worker uses `django-backend/railway.worker.toml` so it does not inherit the web Gunicorn command or public health-check behavior. The worker has no public domain. It runs with `HOME=/tmp` so the non-root Celery process does not try to read root-owned PostgreSQL client-certificate paths.
 
-No Railway Redis service, worker service, paid plan, or usage upgrade was created during this Celery preparation phase.
+Verified activation results on July 30, 2026:
+
+- Redis service `Redis`: online, private, no public URL.
+- Celery worker `ai-business-growth-celery-worker-staging`: online, deployment `25d02cac-3c19-40d5-b8de-620aa408cb06`.
+- Django backend deployment with Redis async support: `ec5e329f-a209-4219-a014-59645c2751eb`.
+- Backend readiness returned safe JSON with `database: ok` and `redis: ok`.
+- Controlled backend-only async smoke test queued one generation, completed through the Railway worker, returned exactly seven items for days 1 through 7, persisted Groq provider/model/token metadata, created two drafts, and repeated conversion created zero duplicates.
+- Drafts remained `draft`, approval status remained `draft`, and no scheduled or published state was set.
+
+The frontend flag `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` should be enabled only after the product owner approves switching the public staging UI to the async polling path. Do not place Redis, database, Django, JWT, or Groq secrets in Vercel or any `NEXT_PUBLIC_` variable.
 
 ## GitHub Staging Verification Workflow
 

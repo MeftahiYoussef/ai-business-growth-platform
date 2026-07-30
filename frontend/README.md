@@ -87,4 +87,4 @@ Client-side data requests go through `/api/backend/*`, which attaches the cookie
 
 Set `NEXT_PUBLIC_API_URL` to the deployed Django backend origin. Use HTTPS in production so the auth cookie can use `Secure`.
 
-The staging frontend currently keeps `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` until the Railway Redis and worker services are explicitly approved and deployed.
+The staging frontend currently keeps `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` even though Railway Redis and the Celery worker are deployed. Enable the flag only when the public staging UI is ready to use the async polling flow.
