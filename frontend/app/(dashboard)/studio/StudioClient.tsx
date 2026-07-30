@@ -136,6 +136,7 @@ export function StudioClient({ business, generations }: { business: Business | n
       return;
     }
     setLoadingPlan(true);
+    let queuedAsync = false;
     try {
       if (asyncContentPlanEnabled()) {
         const idempotencyKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
@@ -150,6 +151,7 @@ export function StudioClient({ business, generations }: { business: Business | n
         setPlanJobStatus(queued.status);
         setActivePlanGenerationId(queued.generation_id);
         window.sessionStorage.setItem(activePlanStorageKey, queued.generation_id);
+        queuedAsync = true;
         showToast('Content plan queued');
         return;
       }
@@ -168,7 +170,7 @@ export function StudioClient({ business, generations }: { business: Business | n
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Content plan generation failed', 'error');
     } finally {
-      if (!asyncContentPlanEnabled()) setLoadingPlan(false);
+      if (!asyncContentPlanEnabled() || !queuedAsync) setLoadingPlan(false);
     }
   }
 

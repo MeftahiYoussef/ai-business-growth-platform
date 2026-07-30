@@ -17,7 +17,11 @@ from groq import RateLimitError as GroqRateLimitError
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
-from apps.ai.content_plan_service import create_drafts_from_plan, submit_weekly_content_plan_job
+from apps.ai.content_plan_service import (
+    create_drafts_from_plan,
+    run_queued_content_plan_generation,
+    submit_weekly_content_plan_job,
+)
 from apps.ai.exceptions import (
     AIConfigurationError,
     AIProviderError,
@@ -523,6 +527,19 @@ class ApiFlowTests(TestCase):
         self.assertEqual(response.data["message"], "Asynchronous AI generation is not enabled")
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_async_content_plan_rejects_invalid_idempotency_key_format(self):
+        self.register("async-bad-key@example.com")
+        business = self.create_business()
+        response = self.client.post(
+            "/api/ai/content-plans/queue/",
+            {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="bad key with spaces",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("idempotency_key", response.data["details"])
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_async_content_plan_failure_status_is_sanitized(self):
         self.register("async-fail-plan@example.com")
         business = self.create_business()
@@ -584,6 +601,28 @@ class ApiFlowTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.status, AIContentGeneration.Status.COMPLETED)
         self.assertEqual(record.versions.count(), 1)
+
+    def test_running_async_content_plan_task_is_not_executed_twice(self):
+        self.register("async-running@example.com")
+        business = self.create_business()
+        record = AIContentGeneration.objects.create(
+            business_id=business["_id"],
+            user=get_user_model().objects.get(email="async-running@example.com"),
+            feature_name="weekly_content_plan",
+            objective="engagement",
+            platform="linkedin",
+            status=AIContentGeneration.Status.RUNNING,
+            task_id="same-task",
+            started_at=timezone.now(),
+            attempt_count=1,
+        )
+        with patch("apps.ai.content_plan_service.get_ai_provider") as provider_factory:
+            returned = run_queued_content_plan_generation(generation_id=str(record.id), task_id="same-task")
+        provider_factory.assert_not_called()
+        record.refresh_from_db()
+        self.assertEqual(returned.id, record.id)
+        self.assertEqual(record.status, AIContentGeneration.Status.RUNNING)
+        self.assertEqual(record.attempt_count, 1)
 
     def test_content_plan_draft_conversion_is_business_isolated(self):
         self.register("draft-owner@example.com")

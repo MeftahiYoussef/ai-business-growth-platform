@@ -1,7 +1,9 @@
 import hashlib
 import json
 import logging
+import re
 import time
+from datetime import timedelta
 from typing import Any
 
 from django.conf import settings
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 CONTENT_PLAN_FEATURE_NAME = "weekly_content_plan"
 MAX_IDEMPOTENCY_KEY_LENGTH = 128
+IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
 
 
 def _usage(input_tokens: int = 0, output_tokens: int = 0) -> dict[str, int]:
@@ -60,6 +63,8 @@ def normalize_idempotency_key(raw_key: str | None) -> str:
         return ""
     if len(key) > MAX_IDEMPOTENCY_KEY_LENGTH:
         raise ValidationError({"idempotency_key": ["Idempotency-Key is too long"]})
+    if not IDEMPOTENCY_KEY_PATTERN.fullmatch(key):
+        raise ValidationError({"idempotency_key": ["Idempotency-Key contains unsupported characters"]})
     return key
 
 
@@ -344,14 +349,17 @@ def run_queued_content_plan_generation(*, generation_id: str, task_id: str = "")
             return None
         if record.status in {AIContentGeneration.Status.COMPLETED, AIContentGeneration.Status.CANCELLED}:
             return record
-        if record.status == AIContentGeneration.Status.RUNNING and record.task_id and record.task_id != task_id:
-            return record
+        if record.status == AIContentGeneration.Status.RUNNING:
+            stale_after = timezone.now() - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 60)
+            if record.started_at and record.started_at > stale_after:
+                return record
         record.status = AIContentGeneration.Status.RUNNING
         record.started_at = record.started_at or timezone.now()
+        record.failed_at = None
         record.attempt_count += 1
         if task_id and not record.task_id:
             record.task_id = task_id
-        record.save(update_fields=["status", "started_at", "attempt_count", "task_id"])
+        record.save(update_fields=["status", "started_at", "failed_at", "attempt_count", "task_id"])
     return _execute_content_plan_generation(record)
 
 
@@ -361,6 +369,7 @@ def mark_content_plan_generation_retrying(*, generation_id: str, exc: Exception)
         error_type=exc.__class__.__name__,
         last_error_code=exc.__class__.__name__,
         last_error_message="Temporary AI generation failure; retrying",
+        failed_at=None,
     )
 
 

@@ -119,6 +119,16 @@ describe('weekly content plan studio', () => {
     expect(screen.getAllByText(/Plan item/i).length).toBe(7);
   });
 
+  it('clears the loading state when asynchronous queue submission fails', async () => {
+    process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN = 'true';
+    vi.spyOn(aiApi, 'queueWeeklyContentPlan').mockRejectedValue(new Error('Queue unavailable'));
+    vi.spyOn(aiApi, 'generateStudioContent').mockResolvedValue({ success: true, data: {} as never });
+    renderStudio();
+    await userEvent.click(screen.getByRole('button', { name: /generate seven-day plan/i }));
+    await waitFor(() => expect(screen.getByText(/queue unavailable/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /generate seven-day plan/i })).not.toBeDisabled();
+  });
+
   it('shows validation and API errors', async () => {
     vi.spyOn(aiApi, 'generateWeeklyContentPlan').mockRejectedValue(new Error('Provider unavailable'));
     renderStudio();
