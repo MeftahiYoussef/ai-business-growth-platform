@@ -231,6 +231,38 @@ export interface ContentPlanGenerationResponse {
   data: AIGeneration;
 }
 
+export interface ContentPlanQueueResponse {
+  success: boolean;
+  generation_id: string;
+  task_id: string;
+  status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed' | 'cancelled' | string;
+  status_url: string;
+  data: AIGeneration;
+}
+
+export interface ContentPlanStatusResponse {
+  success: boolean;
+  generation_id: string;
+  status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed' | 'cancelled' | string;
+  attempt_count: number;
+  created_at: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  failed_at?: string | null;
+  error?: { code: string; message: string } | null;
+  result_available: boolean;
+  provider?: string;
+  model?: string;
+  prompt_version?: string;
+  plan?: ContentPlan;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+  data?: AIGeneration;
+}
+
 export interface AIGeneration {
   _id: string;
   businessId: string;

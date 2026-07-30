@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/components/feedback/ToastProvider';
 import { StudioClient } from '@/app/(dashboard)/studio/StudioClient';
 import * as aiApi from '@/features/ai-studio/api';
@@ -70,6 +70,12 @@ function renderStudio() {
 }
 
 describe('weekly content plan studio', () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN;
+    vi.restoreAllMocks();
+    window.sessionStorage.clear();
+  });
+
   it('renders seven generated items and creates selected drafts', async () => {
     vi.spyOn(aiApi, 'generateWeeklyContentPlan').mockResolvedValue(planResponse());
     vi.spyOn(aiApi, 'createDraftsFromPlan').mockResolvedValue({ success: true, data: [] });
@@ -80,6 +86,37 @@ describe('weekly content plan studio', () => {
     expect(screen.getAllByText(/Plan item/i).length).toBe(7);
     await userEvent.click(screen.getByRole('button', { name: /create selected drafts/i }));
     expect(aiApi.createDraftsFromPlan).toHaveBeenCalledWith('generation-1', [1, 2, 3, 4, 5, 6, 7], {});
+  });
+
+  it('polls an asynchronous content plan job until completion', async () => {
+    process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN = 'true';
+    vi.spyOn(aiApi, 'queueWeeklyContentPlan').mockResolvedValue({
+      success: true,
+      generation_id: 'generation-async-1',
+      task_id: 'task-1',
+      status: 'queued',
+      status_url: '/api/ai/content-plans/generation-async-1/status/',
+      data: {} as never
+    });
+    vi.spyOn(aiApi, 'getContentPlanStatus').mockResolvedValue({
+      ...planResponse(),
+      generation_id: 'generation-async-1',
+      attempt_count: 1,
+      queued_at: '2026-08-03T00:00:00Z',
+      started_at: '2026-08-03T00:00:01Z',
+      completed_at: '2026-08-03T00:00:02Z',
+      failed_at: null,
+      error: null,
+      result_available: true
+    });
+    vi.spyOn(aiApi, 'createDraftsFromPlan').mockResolvedValue({ success: true, data: [] });
+    vi.spyOn(aiApi, 'generateStudioContent').mockResolvedValue({ success: true, data: {} as never });
+    renderStudio();
+    await userEvent.click(screen.getByRole('button', { name: /generate seven-day plan/i }));
+    await waitFor(() => expect(aiApi.queueWeeklyContentPlan).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/weekly strategy summary/i)).toBeInTheDocument());
+    expect(aiApi.getContentPlanStatus).toHaveBeenCalledWith('generation-async-1');
+    expect(screen.getAllByText(/Plan item/i).length).toBe(7);
   });
 
   it('shows validation and API errors', async () => {

@@ -2,14 +2,37 @@
 
 import { CalendarDays, FilePlus2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { AppCard } from '@/components/ui/AppCard';
 import { useToast } from '@/components/feedback/ToastProvider';
-import { createDraftsFromPlan, generateStudioContent, generateWeeklyContentPlan } from '@/features/ai-studio/api';
-import type { AIGeneration, Business, ContentPlanGenerationResponse, ContentPlanItem } from '@/types/api';
+import {
+  createDraftsFromPlan,
+  generateStudioContent,
+  generateWeeklyContentPlan,
+  getContentPlanStatus,
+  queueWeeklyContentPlan
+} from '@/features/ai-studio/api';
+import type { AIGeneration, Business, ContentPlanGenerationResponse, ContentPlanItem, ContentPlanStatusResponse } from '@/types/api';
 
 const platformOptions = ['instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'x', 'pinterest'];
+const asyncContentPlanEnabled = () => process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN === 'true';
+const activePlanStorageKey = 'activeContentPlanGenerationId';
+
+function completedStatusToPlanResult(status: ContentPlanStatusResponse): ContentPlanGenerationResponse {
+  return {
+    success: status.success,
+    id: status.generation_id,
+    status: status.status,
+    provider: status.provider || '',
+    model: status.model || '',
+    prompt_version: status.prompt_version || '',
+    plan: status.plan!,
+    usage: status.usage || { input_tokens: 0, output_tokens: 0 },
+    created_at: status.created_at,
+    data: status.data as ContentPlanGenerationResponse['data']
+  };
+}
 
 export function StudioClient({ business, generations }: { business: Business | null; generations: AIGeneration[] }) {
   const router = useRouter();
@@ -23,7 +46,65 @@ export function StudioClient({ business, generations }: { business: Business | n
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [editedItems, setEditedItems] = useState<Record<string, Partial<ContentPlanItem>>>({});
   const [loadingPlan, setLoadingPlan] = useState(false);
+  const [activePlanGenerationId, setActivePlanGenerationId] = useState<string | null>(null);
+  const [planJobStatus, setPlanJobStatus] = useState<string | null>(null);
   const [creatingDrafts, setCreatingDrafts] = useState(false);
+
+  useEffect(() => {
+    if (!asyncContentPlanEnabled()) return;
+    const existingId = window.sessionStorage.getItem(activePlanStorageKey);
+    if (existingId) {
+      setActivePlanGenerationId(existingId);
+      setLoadingPlan(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!asyncContentPlanEnabled() || !activePlanGenerationId || !loadingPlan) return;
+    const generationId = activePlanGenerationId;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    async function poll() {
+      try {
+        const status = await getContentPlanStatus(generationId);
+        if (cancelled) return;
+        setPlanJobStatus(status.status);
+        if (status.status === 'completed' && status.result_available && status.plan) {
+          const result = completedStatusToPlanResult(status);
+          setPlanResult(result);
+          setSelectedDays(result.plan.items.map((item) => item.day_number));
+          setEditedItems({});
+          window.sessionStorage.removeItem(activePlanStorageKey);
+          setActivePlanGenerationId(null);
+          setLoadingPlan(false);
+          showToast('Seven-day content plan generated');
+          router.refresh();
+          return;
+        }
+        if (status.status === 'failed' || status.status === 'cancelled') {
+          window.sessionStorage.removeItem(activePlanStorageKey);
+          setActivePlanGenerationId(null);
+          setLoadingPlan(false);
+          showToast(status.error?.message || 'Content plan generation failed', 'error');
+          return;
+        }
+        timeoutId = setTimeout(poll, 3000);
+      } catch (error) {
+        if (cancelled) return;
+        window.sessionStorage.removeItem(activePlanStorageKey);
+        setActivePlanGenerationId(null);
+        setLoadingPlan(false);
+        showToast(error instanceof Error ? error.message : 'Could not check generation status', 'error');
+      }
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [activePlanGenerationId, loadingPlan, router, showToast]);
 
   async function generate() {
     if (!business) return;
@@ -56,6 +137,22 @@ export function StudioClient({ business, generations }: { business: Business | n
     }
     setLoadingPlan(true);
     try {
+      if (asyncContentPlanEnabled()) {
+        const idempotencyKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+        const queued = await queueWeeklyContentPlan({
+          businessId: business._id,
+          platforms,
+          startDate,
+          goal: planGoal,
+          additionalInstructions: instructions,
+          idempotencyKey
+        });
+        setPlanJobStatus(queued.status);
+        setActivePlanGenerationId(queued.generation_id);
+        window.sessionStorage.setItem(activePlanStorageKey, queued.generation_id);
+        showToast('Content plan queued');
+        return;
+      }
       const result = await generateWeeklyContentPlan({
         businessId: business._id,
         platforms,
@@ -71,7 +168,7 @@ export function StudioClient({ business, generations }: { business: Business | n
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Content plan generation failed', 'error');
     } finally {
-      setLoadingPlan(false);
+      if (!asyncContentPlanEnabled()) setLoadingPlan(false);
     }
   }
 
@@ -110,7 +207,9 @@ export function StudioClient({ business, generations }: { business: Business | n
             ))}
           </div>
           <label className="field"><span>Additional instructions</span><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={1200} /></label>
-          <Button onClick={generatePlan} disabled={!business || loadingPlan}><Sparkles size={18} /> {loadingPlan ? 'Generating...' : 'Generate seven-day plan'}</Button>
+          <Button onClick={generatePlan} disabled={!business || loadingPlan}>
+            <Sparkles size={18} /> {loadingPlan ? (planJobStatus === 'retrying' ? 'Retrying...' : planJobStatus === 'queued' ? 'Queued...' : 'Generating...') : 'Generate seven-day plan'}
+          </Button>
         </div>
       </AppCard>
       {planResult ? (

@@ -1,5 +1,13 @@
 import { apiFetch } from '@/lib/api/client';
-import type { AIGeneration, ApiEnvelope, ContentDraft, ContentPlanGenerationResponse, ContentPlanItem } from '@/types/api';
+import type {
+  AIGeneration,
+  ApiEnvelope,
+  ContentDraft,
+  ContentPlanGenerationResponse,
+  ContentPlanItem,
+  ContentPlanQueueResponse,
+  ContentPlanStatusResponse
+} from '@/types/api';
 
 export function listGenerations() {
   return apiFetch<ApiEnvelope<AIGeneration[]>>('/ai/studio/history', { retry: true });
@@ -40,6 +48,31 @@ export function generateWeeklyContentPlan(input: {
       additional_instructions: input.additionalInstructions || ''
     }
   });
+}
+
+export function queueWeeklyContentPlan(input: {
+  businessId: string;
+  platforms: string[];
+  startDate: string;
+  goal?: string;
+  additionalInstructions?: string;
+  idempotencyKey?: string;
+}) {
+  return apiFetch<ContentPlanQueueResponse>('/ai/content-plans/queue/', {
+    method: 'POST',
+    headers: input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : undefined,
+    body: {
+      business_id: input.businessId,
+      platforms: input.platforms,
+      start_date: input.startDate,
+      goal: input.goal || '',
+      additional_instructions: input.additionalInstructions || ''
+    }
+  });
+}
+
+export function getContentPlanStatus(id: string) {
+  return apiFetch<ContentPlanStatusResponse>(`/ai/content-plans/${id}/status/`, { retry: true });
 }
 
 export function createDraftsFromPlan(id: string, itemDayNumbers: number[], editedItems: Record<string, Partial<ContentPlanItem>>) {
