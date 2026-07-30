@@ -151,6 +151,16 @@ Opt-in Redis broker integration test:
 RUN_REDIS_INTEGRATION=true USE_SQLITE=false CELERY_TASK_ALWAYS_EAGER=false .venv/bin/pytest tests/test_celery_integration.py
 ```
 
+Railway staging worker:
+
+- Service: `ai-business-growth-celery-worker-staging`
+- Config file: `railway.worker.toml`
+- Command: `celery -A config worker --loglevel=INFO --concurrency=1 --uid=nobody`
+- Redis: private Railway service `Redis`
+- Public domain: none
+
+The live Railway backend has Redis-aware readiness enabled. The Vercel frontend async feature flag remains disabled until the public staging UI is intentionally switched to the polling flow.
+
 ## Commands
 
 ```bash
@@ -205,6 +215,7 @@ Railway staging files:
 
 - `.railwayignore` excludes local secrets, SQLite databases, virtual environments, caches, tests, and generated static output from local-source upload.
 - `railway.toml` defines the health-check path and Gunicorn start command.
+- `railway.worker.toml` defines the private Celery worker build and start command.
 - `Dockerfile` runs `collectstatic`, applies migrations, and starts Gunicorn against the platform `$PORT`.
 
 Active staging backend:
