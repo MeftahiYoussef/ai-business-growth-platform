@@ -212,6 +212,49 @@ Railway project ai-growth-staging
 
 After PR #8 merged, Railway deployment history still showed the existing local-source deployment `08393234-71f5-4020-9075-201a3fe61f43`; no GitHub-triggered Railway deployment was created because repository access is still unavailable to Railway.
 
+## Celery And Redis Async AI Preparation
+
+Asynchronous seven-day content-plan generation is prepared in the Django backend and frontend, but it is not yet enabled on live Railway staging. The current live staging deployment continues to use the verified synchronous Groq workflow until a Redis service and Celery worker are approved.
+
+Prepared lifecycle:
+
+```text
+client queues request
+-> Django validates auth, business access, quota, and input
+-> AIContentGeneration is stored as queued
+-> transaction.on_commit() enqueues Celery with the generation UUID only
+-> worker marks running/retrying/completed/failed
+-> frontend polls /api/ai/content-plans/<generation_id>/status/
+```
+
+Required Railway services for a future enabled staging rollout:
+
+- existing Django web service: `ai-business-growth-backend-staging`
+- existing Railway PostgreSQL service: `Postgres`
+- new private Redis service, only after cost/plan approval
+- new private Celery worker service using the same Django source and no public domain
+
+Expected future worker command:
+
+```bash
+celery -A config worker --loglevel=INFO --concurrency=1
+```
+
+Expected future environment variables:
+
+```env
+AI_ASYNC_CONTENT_PLAN_ENABLED=true
+CELERY_BROKER_URL=${{Redis.REDIS_URL}}
+CELERY_RESULT_BACKEND=${{Redis.REDIS_URL}}
+CELERY_TASK_ALWAYS_EAGER=false
+CELERY_WORKER_PREFETCH_MULTIPLIER=1
+CELERY_TASK_ACKS_LATE=true
+```
+
+The frontend flag `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` should be enabled only after Redis readiness and the worker are deployed. Do not place Redis, database, Django, JWT, or Groq secrets in Vercel or any `NEXT_PUBLIC_` variable.
+
+No Railway Redis service, worker service, paid plan, or usage upgrade was created during this Celery preparation phase.
+
 ## GitHub Staging Verification Workflow
 
 Manual workflow: `.github/workflows/deploy-staging.yml`.

@@ -7,7 +7,8 @@
 | P0 | Complete Railway GitHub source connection | Railway dashboard | GitHub App access to the private repository | Connect `ai-business-growth-backend-staging` to `MeftahiYoussef/ai-business-growth-platform`, branch `main`, root `django-backend`, with Autodeploy and Wait for CI enabled. |
 | P0 | Complete Vercel GitHub connection | Vercel dashboard | GitHub Login Connection for repository owner | Connect `ai-business-growth-platform-staging` to `MeftahiYoussef/ai-business-growth-platform`, production branch `main`, root `frontend`, and keep `NEXT_PUBLIC_API_URL` pointed at the Railway backend. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
-| P1 | Celery/Redis jobs | Django backend | Redis | Sync/publishing/report jobs run async with retry logs. |
+| P1 | Deploy Celery/Redis staging services | Railway | Explicit no-cost/plan approval | Add a private Redis service and one Celery worker, enable `AI_ASYNC_CONTENT_PLAN_ENABLED`, verify queued content plans live, and keep web readiness Redis-aware. |
+| P1 | Async jobs beyond AI content plans | Django backend | Celery/Redis staging worker | Social sync, publishing, and reports run async with retry logs. |
 | P1 | Scheduled publication | `apps/content_planner` | Provider APIs | Approved scheduled posts publish or fail with retry. |
 | P1 | Campaign analytics | analytics/reports | Campaign metrics | Campaign report has actual-vs-target metrics. |
 | P2 | Billing and subscriptions | new billing app | Stripe or provider | Server-side feature limits enforced. |
