@@ -1,14 +1,16 @@
+import hashlib
+import json
 import logging
 import time
 from typing import Any
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, Throttled, ValidationError
 
 from apps.ai.context import build_ai_context
-from apps.ai.exceptions import AIValidationError
+from apps.ai.exceptions import AIIdempotencyConflictError, AIValidationError
 from apps.ai.models import AIContentGeneration, AIContentGenerationVersion
 from apps.ai.prompts.content_plan import CONTENT_PLAN_PROMPT_VERSION, SUPPORTED_PLATFORMS, build_content_plan_prompt
 from apps.ai.providers.factory import get_ai_provider
@@ -18,6 +20,9 @@ from apps.teams.permissions import can_write_content
 from common.utilities.access import accessible_businesses, get_owned_business
 
 logger = logging.getLogger(__name__)
+
+CONTENT_PLAN_FEATURE_NAME = "weekly_content_plan"
+MAX_IDEMPOTENCY_KEY_LENGTH = 128
 
 
 def _usage(input_tokens: int = 0, output_tokens: int = 0) -> dict[str, int]:
@@ -49,7 +54,30 @@ def _check_usage_limits(*, user, business) -> None:
         raise Throttled(detail="Monthly business AI generation quota exceeded")
 
 
-def generate_weekly_content_plan(
+def normalize_idempotency_key(raw_key: str | None) -> str:
+    key = (raw_key or "").strip()
+    if not key:
+        return ""
+    if len(key) > MAX_IDEMPOTENCY_KEY_LENGTH:
+        raise ValidationError({"idempotency_key": ["Idempotency-Key is too long"]})
+    return key
+
+
+def _request_payload(*, platforms: list[str], start_date, goal: str, additional_instructions: str) -> dict[str, Any]:
+    return {
+        "platforms": platforms,
+        "start_date": start_date.isoformat(),
+        "goal": goal or "",
+        "additional_instructions": additional_instructions or "",
+    }
+
+
+def _request_fingerprint(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _prepare_content_plan_generation(
     *,
     user,
     business_id: str,
@@ -57,7 +85,7 @@ def generate_weekly_content_plan(
     start_date,
     goal: str = "",
     additional_instructions: str = "",
-) -> AIContentGeneration:
+) -> tuple[Any, list[str], dict[str, Any], str]:
     business = get_owned_business(user, business_id)
     if not can_write_content(user, business):
         raise PermissionDenied("Not allowed to generate content plans for this business")
@@ -65,21 +93,40 @@ def generate_weekly_content_plan(
     _validate_request(platforms=normalized_platforms, additional_instructions=additional_instructions)
     if len(goal) + len(additional_instructions) > settings.AI_MAX_REQUEST_INPUT_LENGTH:
         raise ValidationError("AI request input is too long")
-    _check_usage_limits(user=user, business=business)
+    payload = _request_payload(
+        platforms=normalized_platforms,
+        start_date=start_date,
+        goal=goal,
+        additional_instructions=additional_instructions,
+    )
+    return business, normalized_platforms, payload, _request_fingerprint(payload)
 
+
+def _create_content_plan_record(
+    *,
+    business,
+    user,
+    normalized_platforms: list[str],
+    start_date,
+    goal: str,
+    request_payload: dict[str, Any],
+    request_fingerprint: str,
+    status: str,
+    idempotency_key: str = "",
+) -> AIContentGeneration:
+    provider = get_ai_provider()
     context = build_ai_context(business=business)
     prompt = build_content_plan_prompt(
         context=context,
         platforms=normalized_platforms,
         start_date=start_date.isoformat(),
         goal=goal,
-        additional_instructions=additional_instructions,
+        additional_instructions=request_payload["additional_instructions"],
     )
-    provider = get_ai_provider()
-    record = AIContentGeneration.objects.create(
+    return AIContentGeneration.objects.create(
         business=business,
         user=user,
-        feature_name="weekly_content_plan",
+        feature_name=CONTENT_PLAN_FEATURE_NAME,
         prompt_version=CONTENT_PLAN_PROMPT_VERSION,
         objective=goal or "weekly content plan",
         platform=",".join(normalized_platforms),
@@ -88,12 +135,33 @@ def generate_weekly_content_plan(
         language=context["business"]["preferred_language"],
         content_format="seven_day_plan",
         prompt={"version": CONTENT_PLAN_PROMPT_VERSION},
-        input_snapshot=prompt["input_snapshot"],
+        input_snapshot={**prompt["input_snapshot"], "request": request_payload},
         provider=provider.name,
         model=provider.model,
         generation_parameters={"platforms": normalized_platforms, "start_date": start_date.isoformat()},
-        status=AIContentGeneration.Status.PENDING,
+        status=status,
+        queued_at=timezone.now() if status == AIContentGeneration.Status.QUEUED else None,
+        idempotency_key=idempotency_key,
+        request_fingerprint=request_fingerprint,
     )
+
+
+def _execute_content_plan_generation(record: AIContentGeneration) -> AIContentGeneration:
+    business = record.business
+    payload = (record.input_snapshot or {}).get("request") or {}
+    platforms = payload.get("platforms") or record.generation_parameters.get("platforms") or record.platform.split(",")
+    start_date = payload.get("start_date") or record.generation_parameters.get("start_date")
+    goal = payload.get("goal", record.objective)
+    additional_instructions = payload.get("additional_instructions", "")
+    context = build_ai_context(business=business)
+    prompt = build_content_plan_prompt(
+        context=context,
+        platforms=platforms,
+        start_date=start_date,
+        goal=goal,
+        additional_instructions=additional_instructions,
+    )
+    provider = get_ai_provider()
     started = time.monotonic()
     try:
         result = provider.generate_structured_json(
@@ -108,6 +176,7 @@ def generate_weekly_content_plan(
             plan = validate_content_plan(result.parsed_data)
         except ValidationError as exc:
             raise AIValidationError("AI provider returned schema-invalid content") from exc
+
         record.generated_content = plan
         record.structured_output = plan
         record.provider = result.provider
@@ -120,13 +189,20 @@ def generate_weekly_content_plan(
         }
         record.latency_ms = round((time.monotonic() - started) * 1000)
         record.status = AIContentGeneration.Status.COMPLETED
+        record.completed_at = timezone.now()
+        record.failed_at = None
+        record.error_type = ""
+        record.last_error_code = ""
+        record.last_error_message = ""
         record.save()
-        AIContentGenerationVersion.objects.create(
+        AIContentGenerationVersion.objects.get_or_create(
             generation=record,
-            business=business,
             version_number=1,
-            action="content_plan_generated",
-            generated_content=plan,
+            defaults={
+                "business": business,
+                "action": "content_plan_generated",
+                "generated_content": plan,
+            },
         )
         logger.info(
             "ai_generation_completed generation_id=%s business_id=%s provider=%s model=%s input_tokens=%s output_tokens=%s status=%s request_id=%s finish_reason=%s",
@@ -144,8 +220,11 @@ def generate_weekly_content_plan(
     except Exception as exc:
         record.status = AIContentGeneration.Status.FAILED
         record.error_type = exc.__class__.__name__
+        record.last_error_code = exc.__class__.__name__
+        record.last_error_message = "Content plan generation failed"
+        record.failed_at = timezone.now()
         record.latency_ms = round((time.monotonic() - started) * 1000)
-        record.save(update_fields=["status", "error_type", "latency_ms"])
+        record.save(update_fields=["status", "error_type", "last_error_code", "last_error_message", "failed_at", "latency_ms"])
         logger.warning(
             "ai_generation_failed generation_id=%s business_id=%s provider=%s model=%s status=%s error_type=%s",
             record.id,
@@ -156,6 +235,143 @@ def generate_weekly_content_plan(
             record.error_type,
         )
         raise
+
+
+def generate_weekly_content_plan(
+    *,
+    user,
+    business_id: str,
+    platforms: list[str],
+    start_date,
+    goal: str = "",
+    additional_instructions: str = "",
+) -> AIContentGeneration:
+    business, normalized_platforms, request_payload, fingerprint = _prepare_content_plan_generation(
+        user=user,
+        business_id=business_id,
+        platforms=platforms,
+        start_date=start_date,
+        goal=goal,
+        additional_instructions=additional_instructions,
+    )
+    _check_usage_limits(user=user, business=business)
+    record = _create_content_plan_record(
+        business=business,
+        user=user,
+        normalized_platforms=normalized_platforms,
+        start_date=start_date,
+        goal=goal,
+        request_payload=request_payload,
+        request_fingerprint=fingerprint,
+        status=AIContentGeneration.Status.PENDING,
+    )
+    return _execute_content_plan_generation(record)
+
+
+def submit_weekly_content_plan_job(
+    *,
+    user,
+    business_id: str,
+    platforms: list[str],
+    start_date,
+    goal: str = "",
+    additional_instructions: str = "",
+    idempotency_key: str | None = None,
+) -> AIContentGeneration:
+    business, normalized_platforms, request_payload, fingerprint = _prepare_content_plan_generation(
+        user=user,
+        business_id=business_id,
+        platforms=platforms,
+        start_date=start_date,
+        goal=goal,
+        additional_instructions=additional_instructions,
+    )
+    key = normalize_idempotency_key(idempotency_key)
+    with transaction.atomic():
+        if key:
+            existing = AIContentGeneration.objects.select_for_update().filter(
+                business=business,
+                user=user,
+                feature_name=CONTENT_PLAN_FEATURE_NAME,
+                idempotency_key=key,
+            ).first()
+            if existing:
+                if existing.request_fingerprint != fingerprint:
+                    raise AIIdempotencyConflictError("Idempotency-Key was already used for a different request")
+                return existing
+        _check_usage_limits(user=user, business=business)
+        try:
+            with transaction.atomic():
+                record = _create_content_plan_record(
+                    business=business,
+                    user=user,
+                    normalized_platforms=normalized_platforms,
+                    start_date=start_date,
+                    goal=goal,
+                    request_payload=request_payload,
+                    request_fingerprint=fingerprint,
+                    status=AIContentGeneration.Status.QUEUED,
+                    idempotency_key=key,
+                )
+        except IntegrityError:
+            if not key:
+                raise
+            existing = AIContentGeneration.objects.select_for_update().get(
+                business=business,
+                user=user,
+                feature_name=CONTENT_PLAN_FEATURE_NAME,
+                idempotency_key=key,
+            )
+            if existing.request_fingerprint != fingerprint:
+                raise AIIdempotencyConflictError("Idempotency-Key was already used for a different request")
+            return existing
+
+        def enqueue_task() -> None:
+            from apps.ai.tasks import generate_content_plan_task
+
+            async_result = generate_content_plan_task.apply_async(args=[str(record.id)])
+            record.task_id = async_result.id
+            AIContentGeneration.objects.filter(id=record.id).update(task_id=async_result.id)
+
+        transaction.on_commit(enqueue_task)
+        return record
+
+
+def run_queued_content_plan_generation(*, generation_id: str, task_id: str = "") -> AIContentGeneration | None:
+    with transaction.atomic():
+        record = AIContentGeneration.objects.select_for_update().select_related("business").filter(id=generation_id).first()
+        if not record:
+            return None
+        if record.status in {AIContentGeneration.Status.COMPLETED, AIContentGeneration.Status.CANCELLED}:
+            return record
+        if record.status == AIContentGeneration.Status.RUNNING and record.task_id and record.task_id != task_id:
+            return record
+        record.status = AIContentGeneration.Status.RUNNING
+        record.started_at = record.started_at or timezone.now()
+        record.attempt_count += 1
+        if task_id and not record.task_id:
+            record.task_id = task_id
+        record.save(update_fields=["status", "started_at", "attempt_count", "task_id"])
+    return _execute_content_plan_generation(record)
+
+
+def mark_content_plan_generation_retrying(*, generation_id: str, exc: Exception) -> None:
+    AIContentGeneration.objects.filter(id=generation_id).exclude(status=AIContentGeneration.Status.COMPLETED).update(
+        status=AIContentGeneration.Status.RETRYING,
+        error_type=exc.__class__.__name__,
+        last_error_code=exc.__class__.__name__,
+        last_error_message="Temporary AI generation failure; retrying",
+    )
+
+
+def mark_content_plan_generation_failed(*, generation_id: str, exc: Exception, message: str = "Content plan generation failed") -> None:
+    AIContentGeneration.objects.filter(id=generation_id).exclude(status=AIContentGeneration.Status.COMPLETED).update(
+        status=AIContentGeneration.Status.FAILED,
+        error_type=exc.__class__.__name__,
+        last_error_code=exc.__class__.__name__,
+        last_error_message=message,
+        failed_at=timezone.now(),
+    )
 
 
 def create_drafts_from_plan(*, user, generation_id: str, item_day_numbers: list[int], edited_items: dict[str, dict[str, Any]] | None = None) -> list[ContentDraft]:

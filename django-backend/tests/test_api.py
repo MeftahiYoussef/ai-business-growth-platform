@@ -17,7 +17,7 @@ from groq import RateLimitError as GroqRateLimitError
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
-from apps.ai.content_plan_service import create_drafts_from_plan
+from apps.ai.content_plan_service import create_drafts_from_plan, submit_weekly_content_plan_job
 from apps.ai.exceptions import (
     AIConfigurationError,
     AIProviderError,
@@ -29,6 +29,7 @@ from apps.ai.models import AIContentGeneration
 from apps.ai.providers.base import AIProviderResult
 from apps.ai.providers.factory import get_ai_provider
 from apps.ai.providers.groq_provider import GroqProvider
+from apps.ai.tasks import generate_content_plan_task
 from apps.ai.validators import validate_content_plan
 from apps.businesses.models import Business
 from apps.content_planner.models import ContentDraft, ContentVersion
@@ -175,12 +176,27 @@ class ApiFlowTests(TestCase):
 
         ready = self.client.get("/api/health/ready/")
         self.assertEqual(ready.status_code, 200)
-        self.assertEqual(ready.json(), {"status": "ok"})
+        self.assertEqual(ready.json()["status"], "ok")
+        self.assertEqual(ready.json()["database"], "ok")
 
         with patch("config.health.connection.cursor", side_effect=RuntimeError("database unavailable")):
             unavailable = self.client.get("/api/health/ready/")
         self.assertEqual(unavailable.status_code, 503)
-        self.assertEqual(unavailable.json(), {"status": "error"})
+        self.assertEqual(unavailable.json(), {"status": "error", "database": "error"})
+
+    @override_settings(AI_ASYNC_CONTENT_PLAN_ENABLED=True, CELERY_TASK_ALWAYS_EAGER=False)
+    def test_readiness_checks_redis_when_async_generation_is_enabled(self):
+        redis_client = Mock()
+        redis_client.ping.return_value = True
+        with patch("config.health.Redis.from_url", return_value=redis_client):
+            response = self.client.get("/api/health/ready/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok", "database": "ok", "redis": "ok"})
+
+        with patch("config.health.Redis.from_url", side_effect=RuntimeError("redis unavailable")):
+            unavailable = self.client.get("/api/health/ready/")
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(unavailable.json(), {"status": "error", "database": "ok", "redis": "error"})
 
     def test_request_id_header_is_returned_without_auth_logging_surface(self):
         response = self.client.get("/api/health/live/", HTTP_X_REQUEST_ID="staging-smoke-request")
@@ -430,6 +446,144 @@ class ApiFlowTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 429)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_async_content_plan_queue_status_and_idempotency(self):
+        self.register("async-plan@example.com")
+        business = self.create_business()
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=fake_groq_provider()):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    "/api/ai/content-plans/queue/",
+                    {
+                        "business_id": business["_id"],
+                        "platforms": ["instagram", "linkedin"],
+                        "start_date": "2026-08-03",
+                        "goal": "increase engagement",
+                    },
+                    format="json",
+                    HTTP_IDEMPOTENCY_KEY="weekly-plan-1",
+                )
+        self.assertEqual(response.status_code, 202, response.content)
+        generation_id = response.data["generation_id"]
+        record = AIContentGeneration.objects.get(id=generation_id)
+        self.assertEqual(record.status, AIContentGeneration.Status.COMPLETED)
+        self.assertEqual(record.attempt_count, 1)
+        self.assertEqual(len(record.structured_output["items"]), 7)
+        self.assertEqual(record.usage["input_tokens"], 111)
+        self.assertTrue(record.queued_at)
+        self.assertTrue(record.started_at)
+        self.assertTrue(record.completed_at)
+
+        status_response = self.client.get(f"/api/ai/content-plans/{generation_id}/status/")
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(status_response.data["status"], "completed")
+        self.assertTrue(status_response.data["result_available"])
+        self.assertEqual(len(status_response.data["plan"]["items"]), 7)
+
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=fake_groq_provider()):
+            duplicate = self.client.post(
+                "/api/ai/content-plans/queue/",
+                {
+                    "business_id": business["_id"],
+                    "platforms": ["instagram", "linkedin"],
+                    "start_date": "2026-08-03",
+                    "goal": "increase engagement",
+                },
+                format="json",
+                HTTP_IDEMPOTENCY_KEY="weekly-plan-1",
+            )
+        self.assertEqual(duplicate.status_code, 202, duplicate.content)
+        self.assertEqual(duplicate.data["generation_id"], generation_id)
+        self.assertEqual(AIContentGeneration.objects.filter(feature_name="weekly_content_plan").count(), 1)
+
+        conflict = self.client.post(
+            "/api/ai/content-plans/queue/",
+            {
+                "business_id": business["_id"],
+                "platforms": ["linkedin"],
+                "start_date": "2026-08-04",
+                "goal": "increase engagement",
+            },
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="weekly-plan-1",
+        )
+        self.assertEqual(conflict.status_code, 409)
+
+    @override_settings(AI_ASYNC_CONTENT_PLAN_ENABLED=False, CELERY_TASK_ALWAYS_EAGER=False)
+    def test_async_content_plan_queue_requires_explicit_enablement(self):
+        self.register("async-disabled@example.com")
+        business = self.create_business()
+        response = self.client.post(
+            "/api/ai/content-plans/queue/",
+            {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data["message"], "Asynchronous AI generation is not enabled")
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_async_content_plan_failure_status_is_sanitized(self):
+        self.register("async-fail-plan@example.com")
+        business = self.create_business()
+        with patch("apps.ai.content_plan_service.get_ai_provider") as provider_factory:
+            provider = fake_groq_provider()
+            provider.generate_structured_json.side_effect = AIValidationError("raw invalid provider body")
+            provider_factory.return_value = provider
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    "/api/ai/content-plans/queue/",
+                    {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
+                    format="json",
+                    HTTP_IDEMPOTENCY_KEY="weekly-plan-fail",
+                )
+        self.assertEqual(response.status_code, 202, response.content)
+        generation_id = response.data["generation_id"]
+        status_response = self.client.get(f"/api/ai/content-plans/{generation_id}/status/")
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(status_response.data["status"], "failed")
+        self.assertEqual(status_response.data["error"]["message"], "Content plan generation failed")
+        self.assertNotIn("raw invalid", str(status_response.data))
+
+    def test_async_status_is_business_isolated(self):
+        self.register("async-owner@example.com")
+        business = self.create_business()
+        generation = AIContentGeneration.objects.create(
+            business_id=business["_id"],
+            user=get_user_model().objects.get(email="async-owner@example.com"),
+            feature_name="weekly_content_plan",
+            objective="engagement",
+            platform="linkedin",
+            status=AIContentGeneration.Status.QUEUED,
+        )
+        self.client.credentials()
+        self.register("async-other@example.com")
+        denied = self.client.get(f"/api/ai/content-plans/{generation.id}/status/")
+        self.assertEqual(denied.status_code, 404)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_async_content_plan_task_is_idempotent_after_completion(self):
+        self.register("async-task@example.com")
+        business = self.create_business()
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=fake_groq_provider()):
+            with self.captureOnCommitCallbacks(execute=True):
+                record = submit_weekly_content_plan_job(
+                    user=get_user_model().objects.get(email="async-task@example.com"),
+                    business_id=business["_id"],
+                    platforms=["linkedin"],
+                    start_date=timezone.now().date() + timedelta(days=1),
+                    goal="engagement",
+                    idempotency_key="task-idempotent-plan",
+                )
+        record.refresh_from_db()
+        self.assertEqual(record.status, AIContentGeneration.Status.COMPLETED)
+        self.assertEqual(record.versions.count(), 1)
+        with patch("apps.ai.content_plan_service.get_ai_provider") as provider_factory:
+            generate_content_plan_task.apply(args=[str(record.id)])
+        provider_factory.assert_not_called()
+        record.refresh_from_db()
+        self.assertEqual(record.status, AIContentGeneration.Status.COMPLETED)
+        self.assertEqual(record.versions.count(), 1)
 
     def test_content_plan_draft_conversion_is_business_isolated(self):
         self.register("draft-owner@example.com")
@@ -810,3 +964,53 @@ class ContentPlanConcurrencyTests(TransactionTestCase):
 
         self.assertEqual(errors, [])
         self.assertEqual(ContentDraft.objects.filter(source_ai_generation=generation, source_plan_day=1).count(), 1)
+
+    def test_concurrent_idempotent_plan_submission_creates_one_generation(self):
+        user = get_user_model().objects.create_user(
+            email="concurrent-queue@example.com",
+            password="Password123!",
+            full_name="Concurrent Queue",
+        )
+        business = Business.objects.create(
+            owner=user,
+            name="Concurrent Queue Business",
+            industry="SaaS",
+            country="US",
+            product_or_service="AI tools",
+            target_audience="Founders",
+            goals=["engagement"],
+            known_competitors=[],
+            brand_voice="Clear",
+        )
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def submit():
+            try:
+                close_old_connections()
+                barrier.wait(timeout=5)
+                generation = submit_weekly_content_plan_job(
+                    user=user,
+                    business_id=str(business.id),
+                    platforms=["linkedin"],
+                    start_date=timezone.now().date() + timedelta(days=1),
+                    goal="engagement",
+                    idempotency_key="concurrent-plan",
+                )
+                results.append(generation.id)
+            except Exception as exc:  # pragma: no cover - assertion reports the collected error
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        with patch("apps.ai.tasks.generate_content_plan_task.apply_async", return_value=SimpleNamespace(id="queued-task")):
+            threads = [threading.Thread(target=submit), threading.Thread(target=submit)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(set(results)), 1)
+        self.assertEqual(AIContentGeneration.objects.filter(business=business, idempotency_key="concurrent-plan").count(), 1)

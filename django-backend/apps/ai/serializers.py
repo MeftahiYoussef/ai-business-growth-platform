@@ -21,6 +21,14 @@ class AIContentGenerationSerializer(serializers.ModelSerializer):
     providerRequestId = serializers.CharField(source="provider_request_id", required=False, allow_blank=True)
     latencyMs = serializers.IntegerField(source="latency_ms", required=False)
     draftLinks = serializers.JSONField(source="draft_links", required=False)
+    taskId = serializers.CharField(source="task_id", required=False, allow_blank=True)
+    queuedAt = serializers.SerializerMethodField()
+    startedAt = serializers.SerializerMethodField()
+    completedAt = serializers.SerializerMethodField()
+    failedAt = serializers.SerializerMethodField()
+    attemptCount = serializers.IntegerField(source="attempt_count", required=False)
+    lastErrorCode = serializers.CharField(source="last_error_code", required=False, allow_blank=True)
+    lastErrorMessage = serializers.CharField(source="last_error_message", required=False, allow_blank=True)
     createdAt = serializers.SerializerMethodField()
 
     class Meta:
@@ -28,7 +36,8 @@ class AIContentGenerationSerializer(serializers.ModelSerializer):
         fields = [
             "_id", "businessId", "userId", "featureName", "promptVersion", "objective", "platform", "audience", "tone", "language",
             "contentFormat", "prompt", "inputSnapshot", "generatedContent", "structuredOutput", "provider", "model", "generationParameters",
-            "usage", "feedback", "status", "errorType", "providerRequestId", "latencyMs", "draftLinks", "createdAt",
+            "usage", "feedback", "status", "errorType", "providerRequestId", "latencyMs", "draftLinks", "taskId", "queuedAt",
+            "startedAt", "completedAt", "failedAt", "attemptCount", "lastErrorCode", "lastErrorMessage", "createdAt",
         ]
 
     def get__id(self, obj) -> str:
@@ -42,6 +51,18 @@ class AIContentGenerationSerializer(serializers.ModelSerializer):
 
     def get_createdAt(self, obj) -> str | None:
         return dt(obj.created_at)
+
+    def get_queuedAt(self, obj) -> str | None:
+        return dt(obj.queued_at)
+
+    def get_startedAt(self, obj) -> str | None:
+        return dt(obj.started_at)
+
+    def get_completedAt(self, obj) -> str | None:
+        return dt(obj.completed_at)
+
+    def get_failedAt(self, obj) -> str | None:
+        return dt(obj.failed_at)
 
 
 class AIContentGenerationVersionSerializer(serializers.ModelSerializer):
@@ -105,3 +126,32 @@ class ContentPlanGenerateResponseSerializer(serializers.Serializer):
     usage = ContentPlanUsageSerializer()
     created_at = serializers.DateTimeField()
     data = AIContentGenerationSerializer()
+
+
+class ContentPlanQueueResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    generation_id = serializers.CharField()
+    task_id = serializers.CharField(allow_blank=True)
+    status = serializers.CharField()
+    status_url = serializers.CharField()
+    data = AIContentGenerationSerializer()
+
+
+class ContentPlanStatusResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    generation_id = serializers.CharField()
+    status = serializers.CharField()
+    attempt_count = serializers.IntegerField()
+    created_at = serializers.DateTimeField()
+    queued_at = serializers.DateTimeField(allow_null=True)
+    started_at = serializers.DateTimeField(allow_null=True)
+    completed_at = serializers.DateTimeField(allow_null=True)
+    failed_at = serializers.DateTimeField(allow_null=True)
+    error = serializers.JSONField(allow_null=True)
+    result_available = serializers.BooleanField()
+    plan = serializers.JSONField(required=False)
+    usage = ContentPlanUsageSerializer(required=False)
+    provider = serializers.CharField(required=False)
+    model = serializers.CharField(required=False)
+    prompt_version = serializers.CharField(required=False)
+    data = AIContentGenerationSerializer(required=False)
