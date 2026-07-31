@@ -8,6 +8,7 @@ venv/
 
 # Next.js
 frontend/.next/
+frontend/.vercel/
 frontend/out/
 frontend/tsconfig.tsbuildinfo
 

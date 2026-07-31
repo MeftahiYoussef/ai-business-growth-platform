@@ -1,6 +1,6 @@
 # Staging Deployment Rehearsal
 
-Last updated: 2026-07-29.
+Last updated: 2026-07-31.
 
 This runbook records the live staging deployment for the AI Business Growth & Trend Intelligence Platform. Do not place real credentials in this file or in any committed platform environment file.
 
@@ -102,9 +102,12 @@ Required Vercel variable for Production and Preview:
 
 ```env
 NEXT_PUBLIC_API_URL=https://ai-business-growth-backend-staging-production.up.railway.app
+NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true
 ```
 
 Do not define `NEXT_PUBLIC_GROQ_API_KEY`, database credentials, Django secrets, JWT signing secrets, or provider secrets. Frontend requests go through same-origin Next.js route handlers under `/api/backend/*`, which attach the HTTP-only cookie token to Django server-side.
+
+The staging frontend async flag is enabled only for the existing Vercel project `ai-business-growth-platform-staging`. The synchronous Django endpoint remains available as the immediate rollback path.
 
 ## Cross-Origin Authentication
 
@@ -124,7 +127,7 @@ Verified staging behavior:
 Verified live results:
 
 - `GET /api/health/live/`: HTTP 200, minimal JSON.
-- `GET /api/health/ready/`: HTTP 200, PostgreSQL readiness only.
+- `GET /api/health/ready/`: HTTP 200, PostgreSQL and Redis readiness when async processing is enabled.
 - `HEAD /api/docs/`: HTTP 200.
 
 Readiness does not call Groq.
@@ -217,7 +220,7 @@ After PR #8 merged, Railway deployment history still showed the existing local-s
 
 ## Celery And Redis Async AI Staging
 
-Asynchronous seven-day content-plan generation is enabled on the live Railway backend and verified with a private Railway Redis service and a private Celery worker. The Vercel frontend feature flag remains disabled, so the public staging UI continues to use the synchronous flow until a separate frontend rollout decision.
+Asynchronous seven-day content-plan generation is enabled on the live Railway backend and verified with a private Railway Redis service, a private Celery worker, and the public Vercel staging UI polling flow.
 
 Prepared lifecycle:
 
@@ -265,7 +268,36 @@ Verified activation results on July 30, 2026:
 - Controlled backend-only async smoke test queued one generation, completed through the Railway worker, returned exactly seven items for days 1 through 7, persisted Groq provider/model/token metadata, created two drafts, and repeated conversion created zero duplicates.
 - Drafts remained `draft`, approval status remained `draft`, and no scheduled or published state was set.
 
-The frontend flag `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` should be enabled only after the product owner approves switching the public staging UI to the async polling path. Do not place Redis, database, Django, JWT, or Groq secrets in Vercel or any `NEXT_PUBLIC_` variable.
+Verified frontend rollout on July 31, 2026:
+
+- Existing Vercel project reused: `ai-business-growth-platform-staging`.
+- Vercel deployment: `dpl_4pjgXq6F398AsLjgPw2q5GQDZiQa`, status `READY`, stable alias `https://ai-business-growth-platform-staging.vercel.app`.
+- Browser bundle scan found no forbidden backend secret markers.
+- Browser authentication, session refresh, protected route access, and logout passed.
+- Queue request returned HTTP 202 with status `queued`; the browser used `/api/backend/ai/content-plans/queue/` and did not call the synchronous generation endpoint.
+- Observed UI/job states: `submitting`, `queued`, `running`, `completed`.
+- Page-refresh recovery resumed polling the active generation without creating a second queue request.
+- Completed result rendered exactly seven items for days 1 through 7.
+- Provider/model/token metadata persisted: `groq`, `openai/gpt-oss-20b`, nonzero input/output token counts.
+- Duplicate submit created one queue request.
+- Draft conversion created drafts from the selected generated items; repeated conversion returned zero additional drafts.
+- Drafts remained `draft`, approval status remained `draft`, and no scheduled or published state was set.
+- Safe failure presentation was verified with client-side validation and a mocked queue failure; no stack trace or secret marker was shown and submit recovered.
+- Recent Railway web and worker logs were scanned for forbidden markers without printing log lines; no unsafe markers were found.
+
+The live frontend proxy was corrected to forward backend API paths to Django with a trailing slash. This prevents Vercel/Next path normalization from converting a Django POST redirect into a `405 Method "GET" not allowed` response.
+
+Do not place Redis, database, Django, JWT, or Groq secrets in Vercel or any `NEXT_PUBLIC_` variable.
+
+Frontend-only rollback:
+
+```text
+1. Set NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false for the existing Vercel staging project.
+2. Redeploy the existing Vercel project.
+3. Confirm the synchronous seven-day generation UI is active.
+4. Keep Railway Redis and the Celery worker online until queued/running jobs are understood.
+5. Do not reverse migrations, delete generation history, or remove Redis/worker services during the incident.
+```
 
 ## GitHub Staging Verification Workflow
 
@@ -325,9 +357,10 @@ The GitHub `staging` environment exists, but environment wait-timer protection w
 
 ## Spending Controls
 
-Railway reported usage-metered resources with one backend replica and one PostgreSQL service. Keep staging conservative:
+Railway reported usage-metered resources with one backend replica, one private Celery worker, one Redis service, and one PostgreSQL service. On July 31, 2026, the CLI reported current usage `$0.1049`, current bill `$0.1049`, estimated bill `$0.2070`, no soft limit, no hard limit, and `over limit: no`. Keep staging conservative:
 
 - one backend replica;
+- one worker replica with concurrency 1;
 - `WEB_CONCURRENCY=1`;
 - avoid redeploy loops;
 - keep backup dumps outside the repository;
@@ -342,4 +375,4 @@ No hard workspace spending cap was configured through the CLI during this run. R
 - Railway resources are usage-metered; monitor usage and stop before any unwanted paid-plan requirement.
 - GitHub Actions verifies live staging; provider-native autodeploy requires the one-time Railway GitHub source connection and confirmed Vercel Git integration.
 - No production deployment exists.
-- No object storage, Celery, Redis, social OAuth, billing, RAG, or social publishing is configured.
+- No object storage, social OAuth, billing, RAG, or social publishing is configured.

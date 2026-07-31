@@ -9,11 +9,11 @@
 | Social sync | Sandbox | Synchronous mock sync endpoint; Celery deferred. |
 | Analytics dashboard | Complete MVP | Summary metrics and platform breakdown from stored snapshots. |
 | AI content studio | Complete MVP | Groq-only provider, generation history and versioning. |
-| Seven-day AI content plan | Complete MVP | Structured output, quota checks, history/usage storage, explicit draft creation. Async queue/status support is implemented behind a deployment flag. |
-| Celery/Redis async AI jobs | Staging backend active | Django Celery app, Redis settings, queued generation status, idempotency, safe retries, polling API, frontend opt-in UX, and local Redis docs are implemented. Railway staging now has a private Redis service and private Celery worker; backend async queue smoke passed. The public Vercel async UI flag remains disabled. |
+| Seven-day AI content plan | Complete MVP | Structured output, quota checks, history/usage storage, explicit draft creation, and async queue/status support. |
+| Celery/Redis async AI jobs | Staging active | Django Celery app, Redis settings, queued generation status, idempotency, safe retries, polling API, frontend opt-in UX, and local Redis docs are implemented. Railway staging has a private Redis service and private Celery worker; the Vercel async UI is enabled and browser-verified. |
 | PostgreSQL readiness | Complete MVP | SQLite fallback preserved; PostgreSQL settings, driver, migrations, indexes, health endpoints, and CI service configured. |
 | Health endpoints | Complete MVP | Liveness and database readiness endpoints exist under `/api/health/`. |
-| Staging deployment rehearsal | Complete MVP | Vercel frontend, Railway Django backend, and Railway PostgreSQL are live. `v0.2.0-staging` is the Railway-compatible rollback tag. Health, auth, real Groq generation, draft conversion, duplicate prevention, backup, isolated restore, rollback, and latest-main recovery were verified. GitHub Actions staging verification is live; provider-native Vercel/Railway autodeploy still needs one-time account-owner GitHub connection steps. Render PostgreSQL is preserved but unused. |
+| Staging deployment rehearsal | Complete MVP | Vercel frontend, Railway Django backend, Railway PostgreSQL, private Redis, and private Celery worker are live. Health, auth, async real Groq generation, status polling, draft conversion, duplicate prevention, backup, isolated restore, rollback, and latest-main recovery were verified. GitHub Actions staging verification is live; provider-native Vercel/Railway autodeploy remains deferred. Render PostgreSQL is preserved but unused. |
 | Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
