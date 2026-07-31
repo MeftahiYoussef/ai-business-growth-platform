@@ -56,6 +56,8 @@ The browser does not store the JWT in local storage. Login and registration call
 
 Client-side data requests go through `/api/backend/*`, which attaches the cookie token to Django as `Authorization: Bearer <token>`.
 
+The backend proxy forwards Django API paths with a trailing slash. This avoids POST redirect failures when hosted platforms normalize browser-facing route slashes before the Next.js route handler runs.
+
 ## Project Structure
 
 - `app/(auth)` public login, register, forgot-password routes
@@ -87,4 +89,6 @@ Client-side data requests go through `/api/backend/*`, which attaches the cookie
 
 Set `NEXT_PUBLIC_API_URL` to the deployed Django backend origin. Use HTTPS in production so the auth cookie can use `Secure`.
 
-The staging frontend currently keeps `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` even though Railway Redis and the Celery worker are deployed. Enable the flag only when the public staging UI is ready to use the async polling flow.
+The staging frontend has `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` enabled only on the existing Vercel staging project. Browser smoke testing verified authentication, queue submission, status polling, refresh recovery, seven-item rendering, duplicate-submit protection, draft conversion, duplicate draft prevention, safe failure presentation, logout, and protected-route behavior.
+
+Immediate staging rollback is frontend-only: set `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` in the existing Vercel staging project and redeploy. Keep the synchronous Django endpoint available and do not delete Redis, the worker, or generation history during rollback.

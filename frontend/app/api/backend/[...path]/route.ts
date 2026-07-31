@@ -5,11 +5,15 @@ import { getToken, clearToken } from '@/lib/auth/cookies';
 
 type Params = { params: Promise<{ path: string[] }> };
 
+export function backendProxyPath(path: string[]) {
+  return `/${path.join('/')}/`;
+}
+
 async function proxy(request: Request, { params }: Params) {
   const { path } = await params;
   const token = await getToken();
   const url = new URL(request.url);
-  const backendUrl = new URL(backendApiUrl(`/${path.join('/')}`));
+  const backendUrl = new URL(backendApiUrl(backendProxyPath(path)));
   backendUrl.search = url.search;
 
   const headers = new Headers(request.headers);

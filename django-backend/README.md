@@ -159,7 +159,7 @@ Railway staging worker:
 - Redis: private Railway service `Redis`
 - Public domain: none
 
-The live Railway backend has Redis-aware readiness enabled. The Vercel frontend async feature flag remains disabled until the public staging UI is intentionally switched to the polling flow.
+The live Railway backend has Redis-aware readiness enabled. The Vercel staging frontend now has `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` enabled for the public async polling flow. The synchronous endpoint remains available as the immediate frontend rollback path.
 
 ## Commands
 
@@ -237,6 +237,15 @@ v0.2.0-staging
 ```
 
 Staging deployment is provider-native. Railway and Vercel should autodeploy from GitHub `main` after CI, while the GitHub staging workflow validates backend/frontend code and verifies live staging health. Public staging URLs and platform IDs are stored as GitHub variables. PR #8 merged the provider-native verification workflow, final main CI passed, and the main staging verification run `30491459546` passed. Railway and Vercel still require one-time account-owner GitHub connection steps before automatic provider deployments can be claimed.
+
+Live async staging UI verification:
+
+- Vercel deployment `dpl_4pjgXq6F398AsLjgPw2q5GQDZiQa` enabled the async frontend flag.
+- Browser smoke test queued one seven-day content-plan job through the live Next.js proxy, Railway web service, private Redis service, and Celery worker.
+- Observed states were `submitting`, `queued`, `running`, and `completed`.
+- The completed result contained exactly seven items for days 1 through 7 with provider `groq`, model `openai/gpt-oss-20b`, and nonzero token counts.
+- Draft conversion and duplicate-draft prevention passed; drafts remained unapproved, unscheduled, and unpublished.
+- Safe failure presentation and logout/protected-route behavior passed.
 
 See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test results, backup/restore notes, rollback limits, and Railway usage controls.
 
