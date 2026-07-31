@@ -39,7 +39,7 @@ def ready(_request):
             cursor.fetchone()
     except Exception:
         return Response({"status": "error", "database": "error"}, status=503)
-    if settings.AI_ASYNC_CONTENT_PLAN_ENABLED and not settings.CELERY_TASK_ALWAYS_EAGER:
+    if (settings.AI_ASYNC_CONTENT_PLAN_ENABLED or settings.ASYNC_REPORTS_ENABLED) and not settings.CELERY_TASK_ALWAYS_EAGER:
         try:
             Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=2, socket_timeout=2).ping()
         except Exception:

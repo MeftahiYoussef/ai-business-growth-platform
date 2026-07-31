@@ -12,6 +12,10 @@ from apps.ai.content_plan_service import submit_weekly_content_plan_job
 from apps.ai.models import AIContentGeneration
 from apps.ai.providers.base import AIProviderResult
 from apps.businesses.models import Business
+from apps.content_planner.models import ContentDraft
+from apps.reports.models import Report
+from apps.reports.services import submit_business_report_job
+from common.models import BackgroundJob
 from config.celery import app as celery_app
 
 
@@ -105,3 +109,61 @@ def test_redis_worker_completes_content_plan(settings):
     assert record.usage["input_tokens"] == 111
     assert record.usage["output_tokens"] == 222
     assert record.versions.count() == 1
+
+
+@pytest.mark.skipif(os.environ.get("RUN_REDIS_INTEGRATION") != "true", reason="Redis broker integration is opt-in")
+@pytest.mark.django_db(transaction=True)
+def test_redis_worker_completes_business_report(settings):
+    settings.CELERY_TASK_ALWAYS_EAGER = False
+    settings.ASYNC_REPORTS_ENABLED = True
+    settings.REPORT_AI_RECOMMENDATIONS_ENABLED = False
+    user = get_user_model().objects.create_user(
+        email="redis-report@example.com",
+        password="Password123!",
+        full_name="Redis Report",
+    )
+    business = Business.objects.create(
+        owner=user,
+        name="Redis Report Business",
+        industry="SaaS",
+        country="US",
+        product_or_service="AI tools",
+        target_audience="Founders",
+        goals=["engagement"],
+        known_competitors=[],
+        brand_voice="Clear",
+    )
+    ContentDraft.objects.create(
+        business=business,
+        title="Report draft",
+        caption="Draft",
+        platform="linkedin",
+        content_type="linkedin_post",
+        created_by=user,
+        status=ContentDraft.Status.DRAFT,
+    )
+
+    with start_worker(celery_app, perform_ping_check=False, pool="solo", concurrency=1):
+        job = submit_business_report_job(
+            user=user,
+            business_id=str(business.id),
+            report_type=Report.ReportType.BUSINESS_PERFORMANCE,
+            period_start=timezone.localdate() - timedelta(days=1),
+            period_end=timezone.localdate(),
+            include_ai_recommendations=False,
+            idempotency_key="redis-worker-report",
+        )
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            job.refresh_from_db()
+            if job.status == BackgroundJob.Status.COMPLETED:
+                break
+            time.sleep(0.5)
+
+    job.refresh_from_db()
+    assert job.status == BackgroundJob.Status.COMPLETED
+    assert job.attempt_count == 1
+    report = Report.objects.get(job=job)
+    assert report.summary["draft_total"] == 1
+    assert report.structured_content["metrics"]["draft_total"] == 1
+    assert Report.objects.filter(job=job).count() == 1

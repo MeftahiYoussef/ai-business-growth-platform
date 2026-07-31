@@ -24,6 +24,11 @@ jobs:
       GROQ_API_KEY: ci-placeholder-groq-key
       GROQ_DEFAULT_MODEL: openai/gpt-oss-20b
       AI_ASYNC_CONTENT_PLAN_ENABLED: "false"
+      ASYNC_REPORTS_ENABLED: "false"
+      REPORT_AI_RECOMMENDATIONS_ENABLED: "false"
+      REDIS_URL: redis://127.0.0.1:6379/0
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+      CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/1
       CELERY_TASK_ALWAYS_EAGER: "true"
       CELERY_TASK_EAGER_PROPAGATES: "true"
     services:
@@ -37,6 +42,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U business_intelligence -d business_intelligence_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -56,6 +70,12 @@ jobs:
         working-directory: django-backend
       - run: pytest
         working-directory: django-backend
+      - name: Redis/Celery integration tests
+        run: pytest tests/test_celery_integration.py
+        working-directory: django-backend
+        env:
+          RUN_REDIS_INTEGRATION: "true"
+          CELERY_TASK_ALWAYS_EAGER: "false"
       - run: ruff check .
         working-directory: django-backend
       - run: mypy .
