@@ -161,6 +161,41 @@ Railway staging worker:
 
 The live Railway backend has Redis-aware readiness enabled. The Vercel staging frontend now has `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` enabled for the public async polling flow. The synchronous endpoint remains available as the immediate frontend rollback path.
 
+## Asynchronous Business Reports
+
+Business-performance reports now use the reusable `common.BackgroundJob` model rather than overloading `AIContentGeneration`.
+
+Endpoints:
+
+- `POST /api/reports/queue/`
+- `GET /api/reports/jobs/<job_id>/status/`
+- `GET /api/reports/<report_id>/`
+- `GET /api/reports/`
+- `GET /api/reports/<report_id>/export.csv/`
+- `GET /api/reports/<report_id>/export.json/`
+
+The queue endpoint validates authentication, business ownership, report type, date range, and idempotency before committing a job. Celery is enqueued through `transaction.on_commit()` with only the background-job UUID. PostgreSQL stores job status, coarse progress, attempts, sanitized failures, report output, and exportable structured content.
+
+Supported report type:
+
+```text
+business_performance
+```
+
+The report computes stored metrics only: draft/status counts, published-post records where present, platform/type/objective breakdowns, AI generation counts, token totals, recent trends, competitor observations, and data limitations. It does not invent reach, impressions, clicks, engagement rate, revenue, conversions, or follower growth.
+
+Optional AI recommendations are disabled unless `REPORT_AI_RECOMMENDATIONS_ENABLED=true`. When enabled, the provider receives aggregate metrics and minimal business context only. Recommendations must include `requires_human_review=true`.
+
+Activation flags:
+
+```env
+ASYNC_REPORTS_ENABLED=false
+REPORT_AI_RECOMMENDATIONS_ENABLED=false
+REPORT_MAX_PERIOD_DAYS=366
+```
+
+The frontend report UI is controlled separately by `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false`. Staging report activation is not enabled by default. See `../docs/ASYNC_REPORTS.md` for lifecycle, retry, export, and future social-sync notes.
+
 ## Commands
 
 ```bash
@@ -258,11 +293,11 @@ See `../docs/STAGING_DEPLOYMENT.md` for environment variables, smoke-test result
 ## Health Endpoints
 
 - `GET /api/health/live/` returns minimal liveness JSON.
-- `GET /api/health/ready/` verifies database connectivity. When `AI_ASYNC_CONTENT_PLAN_ENABLED=true` and Celery eager mode is off, readiness also verifies Redis connectivity. It does not call Groq or expose settings.
+- `GET /api/health/ready/` verifies database connectivity. When `AI_ASYNC_CONTENT_PLAN_ENABLED=true` or `ASYNC_REPORTS_ENABLED=true` and Celery eager mode is off, readiness also verifies Redis connectivity. It does not call Groq, prove worker liveness, or expose settings.
 
 ## CI
 
-GitHub Actions runs backend checks, migrations, Django tests, pytest, Ruff, mypy, frontend lint/typecheck/tests/build, and safe secret scans. CI uses PostgreSQL as a service and placeholder Groq secrets with mocked Groq calls.
+GitHub Actions runs backend checks, migrations, Django tests, pytest, Redis/Celery integration tests, Ruff, mypy, frontend lint/typecheck/tests/build, and safe secret scans. CI uses PostgreSQL and Redis services plus placeholder Groq secrets with mocked Groq calls.
 
 ## Backup Considerations
 

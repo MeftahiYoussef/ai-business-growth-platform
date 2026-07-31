@@ -20,9 +20,12 @@ Default:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false
+NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false
 ```
 
 Set `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` only when the Django backend has Redis and a Celery worker available. This switches the seven-day content-plan UI to queue the request, poll the backend status endpoint, and render the completed plan when the worker finishes. Redis, Celery, database, Django, and Groq secrets must never use `NEXT_PUBLIC_` variables.
+
+Set `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=true` only after the Django backend has `ASYNC_REPORTS_ENABLED=true`, Redis, and a Celery worker available. This switches the reports page to queue business-performance reports, poll report-job status, recover an active job after refresh, and render computed metrics separately from AI recommendations. Leave it false in staging until the report feature is explicitly activated.
 
 ## Run
 
@@ -83,6 +86,7 @@ The backend proxy forwards Django API paths with a trailing slash. This avoids P
 | Content generator | `/generate` |
 | Strategy | `/strategy` |
 | Business analysis | `/analysis` |
+| Reports | `/reports` |
 | Profile and settings | `/profile` |
 
 ## Deployment
@@ -92,3 +96,5 @@ Set `NEXT_PUBLIC_API_URL` to the deployed Django backend origin. Use HTTPS in pr
 The staging frontend has `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` enabled only on the existing Vercel staging project. Browser smoke testing verified authentication, queue submission, status polling, refresh recovery, seven-item rendering, duplicate-submit protection, draft conversion, duplicate draft prevention, safe failure presentation, logout, and protected-route behavior.
 
 Immediate staging rollback is frontend-only: set `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` in the existing Vercel staging project and redeploy. Keep the synchronous Django endpoint available and do not delete Redis, the worker, or generation history during rollback.
+
+Async report rollback is also frontend-first while the feature remains behind flags: set `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false` and keep the backend queue endpoints, worker, Redis, and historical reports intact.
