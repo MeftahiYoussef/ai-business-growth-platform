@@ -304,11 +304,69 @@ export interface TeamMember {
 export interface Report {
   _id: string;
   businessId: string;
+  jobId?: string | null;
   title: string;
   reportType: string;
+  dateRangeStart?: string | null;
+  dateRangeEnd?: string | null;
+  filters?: Record<string, unknown>;
   status: string;
-  summary: Partial<AnalyticsSummary>;
+  summary: Partial<AnalyticsSummary> & Record<string, number | string | undefined>;
+  structuredContent?: BusinessPerformanceReport;
+  provider?: string;
+  model?: string;
+  usage?: Record<string, unknown>;
+  generatedAt?: string | null;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BusinessPerformanceReport {
+  report_type: 'business_performance';
+  period: { start: string; end: string };
+  business_overview: {
+    name: string;
+    industry: string;
+    country: string;
+    product_or_service: string;
+    target_audience: string;
+    goals: string[];
+  };
+  metrics: Record<string, number>;
+  platform_breakdown: Array<{ name: string; count: number; source?: string }>;
+  content_type_breakdown: Array<{ name: string; count: number }>;
+  objective_breakdown: Array<{ name: string; count: number }>;
+  recent_trends: Array<Record<string, unknown>>;
+  competitor_observations: Array<Record<string, unknown>>;
+  highlights: string[];
+  risks: string[];
+  recommendations: Array<{ text: string; requires_human_review: boolean | string }>;
+  data_limitations: string[];
+}
+
+export interface ReportQueueResponse {
+  success: boolean;
+  job_id: string;
+  status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed' | 'cancelled' | string;
+  status_url: string;
+}
+
+export interface ReportJobStatusResponse {
+  success: boolean;
+  job_id: string;
+  status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed' | 'cancelled' | string;
+  progress: number;
+  progress_label: string;
+  attempt_count: number;
+  report_id?: string | null;
+  error?: { code: string; message: string } | null;
+  result_available: boolean;
+  report?: Report;
+  created_at: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  failed_at?: string | null;
 }
 
 export interface AppNotification {

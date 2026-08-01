@@ -17,7 +17,7 @@
 | Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
-| Reports | Complete MVP | Executive report generated from analytics summary. |
+| Reports | Complete MVP + async foundation | Executive report generated from analytics summary. Asynchronous business-performance reports now have durable PostgreSQL jobs, status polling, idempotency, deterministic metrics, optional mocked AI recommendations, JSON/CSV exports, and frontend support behind disabled flags. |
 | Notifications | Complete MVP | In-app notifications for workflow/report events. |
 | Billing | Backlog | Phase 2. |
 | Knowledge base | Backlog | Phase 3. |
@@ -35,5 +35,5 @@ No sandbox output is presented as a real provider integration.
 - Use PostgreSQL for shared development/staging/production. SQLite is only a local fallback.
 - Production settings require real deployment environment values for secret key, allowed hosts, CORS/CSRF origins, database connection values, and HTTPS/security headers.
 - Staging uses platform-managed secrets only. Do not commit Railway, Render, Vercel, database, Django, JWT, or Groq secrets.
-- Railway staging is usage-metered; monitor usage and configure budget alerts or hard limits where the workspace plan supports them. Redis and one Celery worker were added only after explicit approval; do not add more metered services without approval.
+- Railway staging is usage-metered; monitor usage and configure budget alerts or hard limits where the workspace plan supports them. Redis and one Celery worker were added only after explicit approval; async reports reuse those services and do not require another worker or Redis instance. Do not add more metered services without approval.
 - Database backups should cover PostgreSQL data, migration history, and any future media/static upload storage. Local SQLite files are not a production backup target.

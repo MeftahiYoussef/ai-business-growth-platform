@@ -6,7 +6,8 @@
 | P0 | Monitor Railway staging usage | Railway dashboard | Active Railway staging services | Usage remains within the intended staging budget and no paid plan upgrade is selected without approval. |
 | P0 | Complete provider-native Git autodeploy evidence | Railway/Vercel dashboards | Deferred provider Git connection verification | Prove Vercel and Railway deploy the exact `main` merge commit after CI without using provider deployment tokens. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
-| P1 | Async jobs beyond AI content plans | Django backend | Celery/Redis staging worker | Social sync, publishing, and reports run async with retry logs. |
+| P1 | Activate async reports in staging | Existing Railway web/worker/Redis and Vercel frontend | Source async report foundation, migrations, CI | Enable `ASYNC_REPORTS_ENABLED` and `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`, run browser/API smoke tests, and preserve synchronous report fallback. |
+| P1 | Async jobs beyond reports | Django backend | Celery/Redis staging worker | Social sync and future publishing-related jobs run async with retry logs; publishing remains explicitly gated and unimplemented. |
 | P1 | Scheduled publication | `apps/content_planner` | Provider APIs | Approved scheduled posts publish or fail with retry. |
 | P1 | Campaign analytics | analytics/reports | Campaign metrics | Campaign report has actual-vs-target metrics. |
 | P2 | Billing and subscriptions | new billing app | Stripe or provider | Server-side feature limits enforced. |
@@ -19,3 +20,4 @@
 - PostgreSQL development configuration, Compose service, CI service, health endpoints, connection persistence, SSL mode support, and database-level duplicate draft protection are implemented.
 - Staging deployment is live with Vercel, Railway Django, and Railway PostgreSQL. Health checks, authentication, real Groq seven-day generation, draft conversion, duplicate prevention, backup, isolated restore, rollback to `v0.2.0-staging`, and latest-main restoration passed. Render PostgreSQL was created earlier and is preserved but unused.
 - Celery/Redis staging services are active after explicit approval: private Railway Redis service `Redis`, private worker `ai-business-growth-celery-worker-staging`, backend Redis readiness, and browser-level async Groq smoke through Vercel queue/polling passed. The synchronous endpoint remains available for rollback.
+- Asynchronous business-performance report source foundation is implemented behind disabled feature flags. It reuses the existing Redis/worker, stores durable jobs in PostgreSQL, computes metrics from stored data only, supports optional AI recommendations with human-review requirements, and prepares future read-only social-sync job types without adding OAuth or publishing.

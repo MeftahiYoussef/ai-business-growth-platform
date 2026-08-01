@@ -10,6 +10,7 @@ This runbook records the live staging deployment for the AI Business Growth & Tr
 - Backend: Railway-managed Django service. The live service currently runs from local-source deployment; the intended steady state is Railway GitHub autodeploy from `main`, rooted at `django-backend/`, with Wait for CI enabled.
 - Database: Railway PostgreSQL attached to the Django service.
 - Async queue: Railway Redis plus a private Celery worker service for queued AI content-plan generation.
+- Async reports: source-code foundation prepared to reuse the same Redis and Celery worker, but staging report feature flags remain disabled until a separate activation.
 - AI: Groq only, model `openai/gpt-oss-20b`.
 - Secrets: platform-managed environment variables in Railway and Vercel. GitHub Actions verifies staging without provider deployment credentials.
 
@@ -103,11 +104,13 @@ Required Vercel variable for Production and Preview:
 ```env
 NEXT_PUBLIC_API_URL=https://ai-business-growth-backend-staging-production.up.railway.app
 NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true
+NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false
 ```
 
 Do not define `NEXT_PUBLIC_GROQ_API_KEY`, database credentials, Django secrets, JWT signing secrets, or provider secrets. Frontend requests go through same-origin Next.js route handlers under `/api/backend/*`, which attach the HTTP-only cookie token to Django server-side.
 
 The staging frontend async flag is enabled only for the existing Vercel project `ai-business-growth-platform-staging`. The synchronous Django endpoint remains available as the immediate rollback path.
+Asynchronous report UI activation is separate and remains disabled by default.
 
 ## Cross-Origin Authentication
 
@@ -357,7 +360,7 @@ The GitHub `staging` environment exists, but environment wait-timer protection w
 
 ## Spending Controls
 
-Railway reported usage-metered resources with one backend replica, one private Celery worker, one Redis service, and one PostgreSQL service. On July 31, 2026, the CLI reported current usage `$0.1049`, current bill `$0.1049`, estimated bill `$0.2070`, no soft limit, no hard limit, and `over limit: no`. Keep staging conservative:
+Railway reported usage-metered resources with one backend replica, one private Celery worker, one Redis service, and one PostgreSQL service. On July 31, 2026, the CLI reported current usage `$0.2049`, current bill `$0.2049`, estimated bill `$0.2109`, no soft limit, no hard limit, and `over limit: no`. Keep staging conservative:
 
 - one backend replica;
 - one worker replica with concurrency 1;
