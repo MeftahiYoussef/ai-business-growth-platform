@@ -98,3 +98,7 @@ The staging frontend has `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=true` enabled only o
 Immediate staging rollback is frontend-only: set `NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN=false` in the existing Vercel staging project and redeploy. Keep the synchronous Django endpoint available and do not delete Redis, the worker, or generation history during rollback.
 
 Async report rollback is also frontend-first while the feature remains behind flags: set `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false` and keep the backend queue endpoints, worker, Redis, and historical reports intact.
+
+## Verified Async Report Frontend Rollout
+
+The existing Vercel staging project has `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=true` alongside the async content-plan flag. The live browser smoke test verified login, queued report submission, progress polling, refresh recovery, report history, notifications, and logout against `https://ai-business-growth-platform-staging.vercel.app` without introducing any new Vercel project or backend credentials.

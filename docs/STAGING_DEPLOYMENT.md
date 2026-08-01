@@ -379,3 +379,17 @@ No hard workspace spending cap was configured through the CLI during this run. R
 - GitHub Actions verifies live staging; provider-native autodeploy requires the one-time Railway GitHub source connection and confirmed Vercel Git integration.
 - No production deployment exists.
 - No object storage, social OAuth, billing, RAG, or social publishing is configured.
+
+## Async Report Rollout Evidence
+
+Live staging was verified with the following current rollout evidence:
+
+- Railway web deployment: `8221c1fa-e51d-4a27-92fe-2d827d692d5b`
+- Railway worker deployment: `0d025af3-34d5-4ce7-9a32-793dd5f8bc84`
+- Existing backend URL: `https://ai-business-growth-backend-staging-production.up.railway.app`
+- Existing frontend URL: `https://ai-business-growth-platform-staging.vercel.app`
+- Vercel deployment: `dpl_Cpe23nsoF5KSPqCmk14D3Fq7A6SL`
+- Backend readiness remained `{"status":"ok","database":"ok","redis":"ok"}` after the rollout.
+- Browser smoke verified authentication, async report queueing, report completion, report history, notifications, logout, and protected-route behavior.
+- Queue requests remained idempotent; the duplicate-submit path did not create duplicate reports.
+- No new infrastructure, public Redis domain, or paid-plan action was introduced.

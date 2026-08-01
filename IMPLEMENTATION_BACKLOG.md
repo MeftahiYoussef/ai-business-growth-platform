@@ -6,7 +6,7 @@
 | P0 | Monitor Railway staging usage | Railway dashboard | Active Railway staging services | Usage remains within the intended staging budget and no paid plan upgrade is selected without approval. |
 | P0 | Complete provider-native Git autodeploy evidence | Railway/Vercel dashboards | Deferred provider Git connection verification | Prove Vercel and Railway deploy the exact `main` merge commit after CI without using provider deployment tokens. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
-| P1 | Activate async reports in staging | Existing Railway web/worker/Redis and Vercel frontend | Source async report foundation, migrations, CI | Enable `ASYNC_REPORTS_ENABLED` and `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`, run browser/API smoke tests, and preserve synchronous report fallback. |
+| Done | Activate async reports in staging | Existing Railway web/worker/Redis and Vercel frontend | Source async report foundation, migrations, CI | Completed on 2026-08-01. `ASYNC_REPORTS_ENABLED` and `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED` were enabled on the existing staging services, browser/API smoke tests passed, and the synchronous report fallback remains available. |
 | P1 | Async jobs beyond reports | Django backend | Celery/Redis staging worker | Social sync and future publishing-related jobs run async with retry logs; publishing remains explicitly gated and unimplemented. |
 | P1 | Scheduled publication | `apps/content_planner` | Provider APIs | Approved scheduled posts publish or fail with retry. |
 | P1 | Campaign analytics | analytics/reports | Campaign metrics | Campaign report has actual-vs-target metrics. |
