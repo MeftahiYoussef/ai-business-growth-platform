@@ -28,8 +28,11 @@ from .services import export_report_csv, submit_business_report_job, validate_re
 class ReportView(APIView):
     def get(self, request):
         business = get_owned_business(request.user, request.query_params.get("businessId"))
-        page = max(int(request.query_params.get("page", 1)), 1)
-        limit = min(max(int(request.query_params.get("limit", 50)), 1), 100)
+        try:
+            page = max(int(request.query_params.get("page", 1)), 1)
+            limit = min(max(int(request.query_params.get("limit", 50)), 1), 100)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"pagination": ["Page and limit must be integers"]}) from exc
         reports = Report.objects.filter(business=business).order_by("-created_at")
         total = reports.count()
         start = (page - 1) * limit
