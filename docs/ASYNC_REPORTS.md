@@ -151,3 +151,17 @@ Worker concurrency remains `1`. Redis and the worker must not have public domain
 Future background job types are reserved for `social_account_sync`, `analytics_import`, `competitor_refresh`, `weekly_report`, and `trend_refresh`. Live social synchronization is not implemented in this phase.
 
 Before real provider sync is added, it must include encrypted OAuth tokens, token refresh, read-only scopes by default, provider-specific rate limits, cursor pagination, idempotent upserts, webhook reconciliation, revoked-access handling, and no publishing permission unless explicitly approved.
+
+## Staging Rollout Evidence
+
+Verified on 2026-08-01 against the existing Railway and Vercel staging resources:
+
+- Railway web deployment: `8221c1fa-e51d-4a27-92fe-2d827d692d5b`
+- Railway worker deployment: `0d025af3-34d5-4ce7-9a32-793dd5f8bc84`
+- Vercel production deployment: `dpl_Cpe23nsoF5KSPqCmk14D3Fq7A6SL`
+- Backend queue endpoint returned `202 Accepted` for the business-report job flow.
+- Browser smoke verified login, queued state, report completion, report history, logout, and protected-route behavior on the live staging frontend.
+- `ASYNC_REPORTS_ENABLED=true` on the Railway web and worker services.
+- `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=true` on the existing Vercel staging project.
+- Runtime log audit found no secret markers in the live Railway web or worker logs.
+- No new Railway or Vercel provider resources were created.

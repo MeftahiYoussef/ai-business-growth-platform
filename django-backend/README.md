@@ -196,6 +196,16 @@ REPORT_MAX_PERIOD_DAYS=366
 
 The frontend report UI is controlled separately by `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED=false`. Staging report activation is not enabled by default. See `../docs/ASYNC_REPORTS.md` for lifecycle, retry, export, and future social-sync notes.
 
+## Verified Async Report Rollout
+
+On 2026-08-01 the existing Railway web and worker services were redeployed with async report processing enabled, while keeping the same PostgreSQL and Redis resources and the synchronous report fallback in place.
+
+- Web deployment: `8221c1fa-e51d-4a27-92fe-2d827d692d5b`
+- Worker deployment: `0d025af3-34d5-4ce7-9a32-793dd5f8bc84`
+- Health remained `{"status":"ok","database":"ok","redis":"ok"}`
+- The report queue returned `202 Accepted`
+- The browser smoke test verified authentication, report queueing, report completion, report history, notifications, logout, and protected-route behavior.
+
 ## Commands
 
 ```bash
