@@ -28,11 +28,12 @@ MAX_IDEMPOTENCY_KEY_LENGTH = 128
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
 
 
-def _usage(input_tokens: int = 0, output_tokens: int = 0) -> dict[str, int]:
+def _usage(input_tokens: int | None = 0, output_tokens: int | None = 0) -> dict[str, int | None]:
+    total_tokens = input_tokens + output_tokens if input_tokens is not None and output_tokens is not None else None
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens,
+        "total_tokens": total_tokens,
     }
 
 
