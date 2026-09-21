@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import ssl
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,17 @@ from .metrics import failure_counts, score_case, summarize
 from .schemas import EvaluationCase, validate_case_payload
 
 LAB_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DJANGO_BACKEND = REPO_ROOT / "django-backend"
+if str(DJANGO_BACKEND) not in sys.path:
+    sys.path.insert(0, str(DJANGO_BACKEND))
+
+from apps.ai.contracts.content_plan import (  # noqa: E402
+    CONTENT_PLAN_CONTRACT_VERSION,
+    CONTENT_PLAN_SCHEMA,
+    content_plan_contract_prompt,
+)
+
 DEFAULT_CASES = LAB_ROOT / "eval" / "cases" / "golden.jsonl"
 DEFAULT_OUTPUT_DIR = LAB_ROOT / "eval" / "results"
 
@@ -42,7 +54,17 @@ def load_cases(path: Path) -> list[EvaluationCase]:
     return cases
 
 
-def _chat_completion(*, base_url: str, model: str, system: str, user: str, api_key: str = "", timeout: int = 120) -> tuple[str, int | None]:
+def _chat_completion(
+    *,
+    base_url: str,
+    model: str,
+    system: str,
+    user: str,
+    api_key: str = "",
+    timeout: int = 120,
+    response_format: dict[str, Any] | None = None,
+    max_output_tokens: int = 4096,
+) -> tuple[str, int | None]:
     payload = {
         "model": model,
         "messages": [
@@ -50,9 +72,11 @@ def _chat_completion(*, base_url: str, model: str, system: str, user: str, api_k
             {"role": "user", "content": user},
         ],
         "temperature": 0.2,
-        "max_tokens": 2048,
+        "max_tokens": max_output_tokens,
         "stream": False,
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "ai-business-growth-eval/1.0",
@@ -90,13 +114,27 @@ def _disable_qwen_thinking(provider: str, model: str, user: str) -> str:
 
 def generate_output(case: EvaluationCase, *, provider: str, model: str) -> tuple[str, int | None]:
     system = case.system_prompt
+    user_payload: dict[str, Any] = {
+        "request": case.user_prompt,
+        "input_context": case.input_context,
+        "expected_schema": case.expected_schema,
+        "grading_rules": case.grading_rules,
+    }
+    response_format = None
+    if case.task_type == "content_planning":
+        system = f"{system} {content_plan_contract_prompt()}"
+        user_payload["contract_version"] = CONTENT_PLAN_CONTRACT_VERSION
+        user_payload["canonical_contract"] = content_plan_contract_prompt()
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": CONTENT_PLAN_CONTRACT_VERSION,
+                "strict": True,
+                "schema": CONTENT_PLAN_SCHEMA,
+            },
+        }
     user = json.dumps(
-        {
-            "request": case.user_prompt,
-            "input_context": case.input_context,
-            "expected_schema": case.expected_schema,
-            "grading_rules": case.grading_rules,
-        },
+        user_payload,
         ensure_ascii=False,
     )
     user = _disable_qwen_thinking(provider, model, user)
@@ -107,6 +145,8 @@ def generate_output(case: EvaluationCase, *, provider: str, model: str) -> tuple
             system=system,
             user=user,
             timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SECONDS", "120")),
+            response_format=response_format,
+            max_output_tokens=int(os.environ.get("LOCAL_LLM_MAX_OUTPUT_TOKENS", "4096")),
         )
     if provider == "groq":
         api_key = os.environ.get("GROQ_API_KEY", "")
@@ -119,6 +159,8 @@ def generate_output(case: EvaluationCase, *, provider: str, model: str) -> tuple
             user=user,
             api_key=api_key,
             timeout=int(os.environ.get("GROQ_TIMEOUT_SECONDS", "60")),
+            response_format=response_format,
+            max_output_tokens=int(os.environ.get("GROQ_MAX_OUTPUT_TOKENS", "4000")),
         )
     raise ValueError(f"Unsupported provider: {provider}")
 
@@ -241,8 +283,10 @@ def main() -> int:
     )
     scores = []
     records = []
+    current_case_id: str | None = None
     try:
         for case in cases:
+            current_case_id = case.id
             output, latency_ms = generate_output(case, provider=args.provider, model=args.model)
             score = score_case(case, output, latency_ms=latency_ms)
             scores.append(score)
@@ -257,13 +301,17 @@ def main() -> int:
                 }
             )
     except RuntimeError as exc:
+        cause = exc.__cause__
         print(
             json.dumps(
                 {
                     "error": "model_request_failed",
+                    "case_id": current_case_id,
                     "message": str(exc),
                     "provider": args.provider,
                     "model": args.model,
+                    "cause_type": type(cause).__name__ if cause else None,
+                    "status_code": getattr(cause, "code", None),
                 },
                 indent=2,
                 sort_keys=True,

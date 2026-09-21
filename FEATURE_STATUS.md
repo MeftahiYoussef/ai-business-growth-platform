@@ -19,7 +19,7 @@
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
 | Reports | Complete MVP + async foundation | Executive report generated from analytics summary. Asynchronous business-performance reports now have durable PostgreSQL jobs, status polling, idempotency, deterministic metrics, optional mocked AI recommendations, JSON/CSV exports, frontend support, and verified staging activation behind `ASYNC_REPORTS_ENABLED` / `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`. |
 | Notifications | Complete MVP | In-app notifications for workflow/report events. |
-| Small LLM model lab | Experimental source foundation | `Qwen/Qwen3-1.7B` is the primary local baseline candidate. Local provider, 50-case golden eval dataset, deterministic metrics, dataset builder, LoRA config example, and RAG design docs exist. Groq remains live default; no fine-tuning or RAG implementation has run. |
+| Small LLM model lab | Experimental source foundation | `Qwen/Qwen3-1.7B` is the primary local baseline candidate. Local provider, corrected `golden_eval_v2` dataset, production-owned content-plan contract, deterministic metrics, dataset builder, LoRA config example, and RAG design docs exist. The corrected 10-case Qwen pilot remains unstable, and Groq comparison hit provider rate limiting after strict-schema content-plan diagnostics passed. Groq remains live default; no fine-tuning or RAG implementation has run. |
 | Billing | Backlog | Phase 2. |
 | Knowledge base | Backlog | Phase 3. |
 | Social inbox | Backlog | Phase 3. |

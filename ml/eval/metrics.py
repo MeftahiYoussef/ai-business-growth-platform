@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from statistics import median
 from typing import Any
 
 from .schemas import EvaluationCase
+
+DJANGO_BACKEND = Path(__file__).resolve().parents[2] / "django-backend"
+if str(DJANGO_BACKEND) not in sys.path:
+    sys.path.insert(0, str(DJANGO_BACKEND))
+
+from apps.ai.contracts.content_plan import validate_content_plan_payload  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -66,15 +74,7 @@ def _language_match(language: str, output_text: str) -> bool:
 
 
 def _seven_day_plan_valid(parsed: Any) -> bool:
-    if not isinstance(parsed, dict):
-        return False
-    items = parsed.get("items")
-    if not isinstance(items, list) or len(items) != 7:
-        return False
-    days = sorted(item.get("day_number") for item in items if isinstance(item, dict))
-    if days != [1, 2, 3, 4, 5, 6, 7]:
-        return False
-    return all(item.get("requires_human_review") is True for item in items if isinstance(item, dict))
+    return validate_content_plan_payload(parsed).valid
 
 
 def _report_metrics_unchanged(case: EvaluationCase, parsed: Any) -> bool:
@@ -103,6 +103,7 @@ def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None)
     human_review = True
     if case.task_type == "content_planning":
         seven_day_valid = _seven_day_plan_valid(parsed)
+        schema_valid = bool(parsed is not None and seven_day_valid)
         human_review = bool(seven_day_valid)
     elif parsed is not None:
         text = json.dumps(parsed, sort_keys=True, ensure_ascii=False)
@@ -151,6 +152,8 @@ def _classify_failure(
     human_review: bool,
     seven_day_valid: bool | None,
 ) -> str | None:
+    if case.task_type == "content_planning" and parsed is not None and seven_day_valid is False:
+        return "INVALID_7_DAY_PLAN"
     if not schema_valid:
         return "SCHEMA_FAILURE"
     if required_rate < 1.0:
@@ -163,8 +166,6 @@ def _classify_failure(
         return "FORBIDDEN_CLAIM"
     if not language_match:
         return "LANGUAGE_MISMATCH"
-    if seven_day_valid is False:
-        return "INVALID_7_DAY_PLAN"
     if not human_review:
         return "HUMAN_REVIEW_FLAG_FAILURE"
     if parsed is None and case.expected_schema != "freeform":

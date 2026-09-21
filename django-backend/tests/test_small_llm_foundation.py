@@ -18,9 +18,11 @@ from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_ma
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
 
+from apps.ai.contracts.content_plan import CONTENT_PLAN_CONTRACT_VERSION, validate_content_plan_payload  # noqa: E402
 from apps.ai.exceptions import AIConfigurationError, AIProviderError, AIValidationError  # noqa: E402
 from apps.ai.providers.factory import get_ai_provider  # noqa: E402
 from apps.ai.providers.local_llm_provider import LocalLLMProvider  # noqa: E402
+from tests.test_api import valid_content_plan  # noqa: E402
 
 
 class FakeResponse:
@@ -130,12 +132,47 @@ def test_golden_dataset_loads_and_has_expected_coverage():
     assert {"en", "fr", "ru"} <= {case.language for case in cases}
 
 
+def test_content_plan_contract_validator_matches_application_shape():
+    result = validate_content_plan_payload(valid_content_plan())
+    assert result.valid is True
+    invalid_plan = valid_content_plan()
+    invalid_plan["items"][0].pop("caption")
+    result = validate_content_plan_payload(invalid_plan)
+    assert result.valid is False
+    assert any("caption" in error for error in result.errors)
+
+
+def test_content_plan_golden_cases_use_current_contract():
+    cases = load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl")
+    content_cases = [case for case in cases if case.task_type == "content_planning"]
+    assert content_cases
+    assert {case.expected_schema for case in content_cases} == {CONTENT_PLAN_CONTRACT_VERSION}
+
+
 def test_deterministic_content_plan_grading():
     case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "cp-en-001")
     output = json.dumps({
         "summary": "Plan for Instagram and LinkedIn",
+        "primary_goal": "engagement",
+        "target_audience": "startup founders",
         "items": [
-            {"day_number": day, "platform": "instagram" if day % 2 else "linkedin", "requires_human_review": True}
+            {
+                "day_number": day,
+                "title": f"Day {day} idea",
+                "platform": "instagram" if day % 2 else "linkedin",
+                "content_type": "instagram_caption" if day % 2 else "linkedin_post",
+                "objective": "engagement",
+                "topic": f"Topic {day}",
+                "hook": f"Hook {day}",
+                "caption": f"Caption {day}",
+                "call_to_action": "Review this idea.",
+                "hashtags": ["#growth"],
+                "visual_brief": "Simple branded visual.",
+                "recommended_time": "09:00",
+                "source_context": ["synthetic evaluation case"],
+                "risk_flags": [],
+                "requires_human_review": True,
+            }
             for day in range(1, 8)
         ],
     })

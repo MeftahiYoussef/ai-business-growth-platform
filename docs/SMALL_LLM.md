@@ -125,6 +125,21 @@ The first measured baseline is documented in:
 docs/SMALL_LLM_BASELINE.md
 ```
 
+The corrected contract baseline is documented in:
+
+```text
+docs/SMALL_LLM_BASELINE_V2.md
+```
+
+Baseline v2 uses the production-owned content-plan contract
+`content_plan_contract_v2` and freezes the corrected golden set as
+`golden_eval_v2`. The first Qwen pilot against that corrected contract still
+failed the seven-day content-plan gate, while Groq strict-schema content-plan
+diagnostics passed before the comparison run hit provider rate limiting. LoRA
+training remains blocked until the Groq reference comparison can complete
+cleanly and Qwen failures are confirmed as training targets rather than prompt,
+budget, or evaluator issues.
+
 ## Metrics
 
 The deterministic evaluator measures:
