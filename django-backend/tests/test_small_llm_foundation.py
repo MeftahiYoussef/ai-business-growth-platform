@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ml.datasets.build_sft_dataset import load_jsonl  # noqa: E402
+from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
 
@@ -63,6 +63,34 @@ def test_local_provider_parses_structured_response():
     assert result.input_tokens == 12
     assert result.output_tokens == 4
     assert result.parsed_data == {"ok": True}
+
+
+def test_local_provider_suppresses_qwen_thinking():
+    payload = {
+        "id": "local-1",
+        "model": "Qwen/Qwen3-1.7B-MLX-4bit",
+        "choices": [{"message": {"content": "{\"ok\": true}"}, "finish_reason": "stop"}],
+        "usage": {},
+    }
+    captured: dict = {}
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001, ANN202
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(payload)
+
+    with override_settings(
+        LOCAL_LLM_ENABLED=True,
+        LOCAL_LLM_MODEL="Qwen/Qwen3-1.7B-MLX-4bit",
+        LOCAL_LLM_DISABLE_THINKING=True,
+    ):
+        with patch("apps.ai.providers.local_llm_provider.urlopen", side_effect=fake_urlopen):
+            LocalLLMProvider().generate_structured_json(
+                system="Return JSON",
+                user="{}",
+                schema={"type": "object"},
+                prompt_version="test-v1",
+            )
+    assert captured["payload"]["messages"][-1]["content"].endswith("/no_think")
 
 
 def test_local_provider_malformed_response_is_sanitized():
@@ -172,6 +200,40 @@ def test_dataset_builder_rejects_duplicate_and_secret(tmp_path):
     )
     with pytest.raises(ValueError, match="secret"):
         load_jsonl(source)
+
+
+def test_dataset_builder_allows_no_test_split(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "source.jsonl"
+    records = []
+    for index in range(10):
+        records.append({
+            "messages": [
+                {"role": "system", "content": "rules"},
+                {"role": "user", "content": f"request {index}"},
+                {"role": "assistant", "content": f"answer {index}"},
+            ]
+        })
+    source.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+    output_dir = tmp_path / "splits"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "builder",
+            "--input",
+            str(source),
+            "--output-dir",
+            str(output_dir),
+            "--validation-ratio",
+            "0.1",
+            "--test-ratio",
+            "0",
+        ],
+    )
+    assert dataset_builder_main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result == {"test": 0, "train": 9, "validation": 1}
+    assert not (output_dir / "test.jsonl").read_text(encoding="utf-8").strip()
 
 
 def test_model_registry_contains_qwen_baseline():

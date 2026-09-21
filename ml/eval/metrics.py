@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from statistics import median
 from typing import Any
 
 from .schemas import EvaluationCase
@@ -20,6 +21,7 @@ class CaseScore:
     human_review_flag: bool
     seven_day_plan_valid: bool | None
     latency_ms: int | None = None
+    failure_category: str | None = None
 
 
 def _extract_json(output: str) -> Any | None:
@@ -110,6 +112,18 @@ def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None)
     if case.task_type == "business_report":
         hallucination_failed = hallucination_failed or not _report_metrics_unchanged(case, parsed)
 
+    language_match = _language_match(case.language, output_text)
+    failure_category = _classify_failure(
+        case=case,
+        parsed=parsed,
+        schema_valid=schema_valid,
+        required_rate=required_rate,
+        forbidden_failed=forbidden_failed,
+        hallucination_failed=hallucination_failed,
+        language_match=language_match,
+        human_review=human_review,
+        seven_day_valid=seven_day_valid,
+    )
     return CaseScore(
         case_id=case.id,
         schema_valid=schema_valid,
@@ -117,11 +131,45 @@ def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None)
         hallucination_failed=hallucination_failed,
         forbidden_claim_failed=forbidden_failed,
         instruction_following=schema_valid and required_rate >= 0.75 and not forbidden_failed,
-        language_match=_language_match(case.language, output_text),
+        language_match=language_match,
         human_review_flag=human_review,
         seven_day_plan_valid=seven_day_valid,
         latency_ms=latency_ms,
+        failure_category=failure_category,
     )
+
+
+def _classify_failure(
+    *,
+    case: EvaluationCase,
+    parsed: Any | None,
+    schema_valid: bool,
+    required_rate: float,
+    forbidden_failed: bool,
+    hallucination_failed: bool,
+    language_match: bool,
+    human_review: bool,
+    seven_day_valid: bool | None,
+) -> str | None:
+    if not schema_valid:
+        return "SCHEMA_FAILURE"
+    if required_rate < 1.0:
+        return "MISSING_REQUIRED_FIELD"
+    if case.task_type == "business_report" and hallucination_failed and not forbidden_failed:
+        return "NUMERIC_MUTATION"
+    if hallucination_failed:
+        return "HALLUCINATED_METRIC"
+    if forbidden_failed:
+        return "FORBIDDEN_CLAIM"
+    if not language_match:
+        return "LANGUAGE_MISMATCH"
+    if seven_day_valid is False:
+        return "INVALID_7_DAY_PLAN"
+    if not human_review:
+        return "HUMAN_REVIEW_FLAG_FAILURE"
+    if parsed is None and case.expected_schema != "freeform":
+        return "UNDER_SPECIFIED"
+    return None
 
 
 def summarize(scores: list[CaseScore]) -> dict[str, float | int | None]:
@@ -134,6 +182,11 @@ def summarize(scores: list[CaseScore]) -> dict[str, float | int | None]:
 
     seven_day_scores = [score for score in scores if score.seven_day_plan_valid is not None]
     latencies = [score.latency_ms for score in scores if score.latency_ms is not None]
+    sorted_latencies = sorted(latencies)
+    p95_latency = None
+    if sorted_latencies:
+        p95_index = min(len(sorted_latencies) - 1, round((len(sorted_latencies) - 1) * 0.95))
+        p95_latency = sorted_latencies[p95_index]
     return {
         "case_count": total,
         "schema_valid_rate": rate("schema_valid"),
@@ -149,4 +202,14 @@ def summarize(scores: list[CaseScore]) -> dict[str, float | int | None]:
             else None
         ),
         "average_latency_ms": round(sum(latencies) / len(latencies), 2) if latencies else None,
+        "median_latency_ms": round(median(latencies), 2) if latencies else None,
+        "p95_latency_ms": p95_latency,
     }
+
+
+def failure_counts(scores: list[CaseScore]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for score in scores:
+        if score.failure_category:
+            counts[score.failure_category] = counts.get(score.failure_category, 0) + 1
+    return dict(sorted(counts.items()))

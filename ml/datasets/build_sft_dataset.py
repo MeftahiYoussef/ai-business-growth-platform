@@ -68,8 +68,12 @@ def main() -> int:
     rng = random.Random(args.seed)
     shuffled = list(records)
     rng.shuffle(shuffled)
-    test_count = max(1, round(len(shuffled) * args.test_ratio)) if len(shuffled) >= 10 else 0
-    validation_count = max(1, round(len(shuffled) * args.validation_ratio)) if len(shuffled) >= 10 else 0
+    test_count = max(1, round(len(shuffled) * args.test_ratio)) if len(shuffled) >= 10 and args.test_ratio > 0 else 0
+    validation_count = (
+        max(1, round(len(shuffled) * args.validation_ratio))
+        if len(shuffled) >= 10 and args.validation_ratio > 0
+        else 0
+    )
     test = shuffled[:test_count]
     validation = shuffled[test_count:test_count + validation_count]
     train = shuffled[test_count + validation_count:]
@@ -77,6 +81,7 @@ def main() -> int:
     output_dir = Path(args.output_dir)
     write_split(output_dir / "train.jsonl", train)
     write_split(output_dir / "validation.jsonl", validation)
+    write_split(output_dir / "valid.jsonl", validation)
     write_split(output_dir / "test.jsonl", test)
     print(json.dumps({"train": len(train), "validation": len(validation), "test": len(test)}, sort_keys=True))
     return 0

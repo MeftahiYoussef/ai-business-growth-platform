@@ -38,6 +38,7 @@ class LocalLLMProvider(BaseAIProvider):
         self.model = settings.LOCAL_LLM_MODEL
         self.timeout_seconds = settings.LOCAL_LLM_TIMEOUT_SECONDS
         self.max_output_tokens = settings.LOCAL_LLM_MAX_OUTPUT_TOKENS
+        self.disable_thinking = settings.LOCAL_LLM_DISABLE_THINKING
 
     def generate_social_content(self, prompt: dict) -> dict:
         schema = {
@@ -125,6 +126,8 @@ class LocalLLMProvider(BaseAIProvider):
         }
         if response_format is not None:
             payload["response_format"] = response_format
+        if self.disable_thinking:
+            payload["messages"] = self._disable_qwen_thinking(messages)
 
         started = time.monotonic()
         request = Request(
@@ -159,7 +162,7 @@ class LocalLLMProvider(BaseAIProvider):
             raise AIValidationError("The local model server returned no choices")
         choice = choices[0]
         message = choice.get("message") or {}
-        content = message.get("content") or ""
+        content = message.get("content") or message.get("reasoning_content") or ""
         if not isinstance(content, str) or not content.strip():
             raise AIValidationError("The local model returned an empty response")
 
@@ -175,3 +178,15 @@ class LocalLLMProvider(BaseAIProvider):
             request_id=data.get("id"),
             finish_reason=choice.get("finish_reason"),
         )
+
+    def _disable_qwen_thinking(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        if "qwen3" not in self.model.lower() and "qwen/qwen3" not in self.model.lower():
+            return messages
+        updated = [message.copy() for message in messages]
+        for message in reversed(updated):
+            if message.get("role") == "user":
+                content = message.get("content", "")
+                if "/no_think" not in content:
+                    message["content"] = f"{content}\n/no_think"
+                break
+        return updated

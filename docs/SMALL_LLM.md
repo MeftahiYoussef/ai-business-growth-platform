@@ -7,6 +7,8 @@ This track is experimental. It does not replace the live Groq provider.
 - Production/staging provider: Groq
 - Production/staging model: `openai/gpt-oss-20b`
 - Experimental small model: `Qwen/Qwen3-1.7B`
+- Local runtime checkpoint: `Qwen/Qwen3-1.7B-MLX-4bit`
+- Local quantization: 4-bit
 - Model family: `qwen3`
 - Model role: `experimental_small_llm`
 - Baseline version: `baseline`
@@ -35,7 +37,11 @@ On Apple Silicon, prefer MLX-LM:
 
 ```bash
 pip install "mlx-lm[train]"
-mlx_lm.server --model Qwen/Qwen3-1.7B --port 8080
+mlx_lm.server \
+  --model Qwen/Qwen3-1.7B-MLX-4bit \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --chat-template-args '{"enable_thinking":false}'
 ```
 
 The Django provider and model lab both expect an OpenAI-compatible local server:
@@ -46,6 +52,7 @@ LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
 LOCAL_LLM_MODEL=Qwen/Qwen3-1.7B
 LOCAL_LLM_TIMEOUT_SECONDS=120
 LOCAL_LLM_MAX_OUTPUT_TOKENS=2048
+LOCAL_LLM_DISABLE_THINKING=true
 ```
 
 These settings are server-side only. They must never use `NEXT_PUBLIC_`.
@@ -100,7 +107,7 @@ Languages:
 Run local Qwen evaluation:
 
 ```bash
-python -m ml.eval.runner --provider local --model Qwen/Qwen3-1.7B --limit 10
+python -m ml.eval.runner --provider local --model Qwen/Qwen3-1.7B-MLX-4bit --limit 10
 ```
 
 Run a limited Groq comparison:
@@ -111,6 +118,12 @@ python -m ml.eval.runner --provider groq --model openai/gpt-oss-20b --limit 10
 
 Use Groq comparison sparingly. Summaries are written under ignored result
 directories and must not contain API keys or authorization material.
+
+The first measured baseline is documented in:
+
+```text
+docs/SMALL_LLM_BASELINE.md
+```
 
 ## Metrics
 
