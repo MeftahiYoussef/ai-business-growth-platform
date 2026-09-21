@@ -1,0 +1,17 @@
+model: Qwen/Qwen3-1.7B
+method: lora
+adapter_output_dir: adapters/qwen3-1.7b-project-structured-output
+train_file: outputs/datasets/train.jsonl
+validation_file: outputs/datasets/validation.jsonl
+test_file: outputs/datasets/test.jsonl
+batch_size: 1
+learning_rate: 0.0001
+max_seq_length: 4096
+epochs: 1
+seed: 20260921
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+notes: Example only. Do not run training during the baseline task.

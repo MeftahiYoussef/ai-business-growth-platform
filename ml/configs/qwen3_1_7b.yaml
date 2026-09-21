@@ -1,0 +1,13 @@
+name: qwen3-1.7b-baseline
+model_family: qwen3
+model_id: Qwen/Qwen3-1.7B
+model_role: experimental_small_llm
+model_version: baseline
+provider: local
+runtime: openai_compatible
+preferred_local_runtime: mlx_lm
+license: Apache-2.0
+fine_tuned: false
+rag_enabled: false
+max_output_tokens: 2048
+temperature: 0.2
