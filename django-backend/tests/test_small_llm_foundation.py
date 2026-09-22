@@ -19,6 +19,7 @@ from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_ma
 from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
+from ml.eval import semantic_analysis  # noqa: E402
 
 from apps.ai.contracts.content_plan import (  # noqa: E402
     CONTENT_PLAN_CONTRACT_VERSION,
@@ -269,6 +270,46 @@ def test_report_metric_hallucination_is_detected():
     output = json.dumps({"metrics": {"content_total": 999}, "recommendations": []})
     score = score_case(case, output)
     assert score.hallucination_failed is True
+
+
+def test_semantic_required_fact_aliases_reduce_false_negatives():
+    case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "report-safety-001")
+    output = "Reach is not available in the supplied data, so I cannot state that it doubled."
+    score = score_case(case, output)
+    assert score.required_fact_recall == 1.0
+    assert score.critical_required_fact_recall == 1.0
+    assert score.insufficient_evidence_handled is True
+    assert score.safe_uncertainty is True
+
+
+def test_semantic_numeric_preservation_detects_mutation():
+    case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "trend-en-001")
+    preserved = score_case(case, json.dumps({"trend": "emerging", "supplied_evidence": {"trend_score": 72, "growth_rate": "18"}, "interpretation": "rising", "recommended_actions": []}))
+    mutated = score_case(case, json.dumps({"trend": "emerging", "supplied_evidence": {"trend_score": 45, "growth_rate": "99"}, "interpretation": "rising", "recommended_actions": []}))
+    assert preserved.numeric_preservation_rate == 1.0
+    assert mutated.numeric_mutation_rate and mutated.numeric_mutation_rate > 0
+
+
+def test_semantic_analysis_rescores_existing_records(tmp_path, monkeypatch, capsys):
+    case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "report-safety-001")
+    records = tmp_path / "records.jsonl"
+    records.write_text(
+        json.dumps({
+            "case_id": case.id,
+            "task_type": case.task_type,
+            "language": case.language,
+            "latency_ms": 10,
+            "score": {"instruction_following": False, "required_field_rate": 0.5},
+            "output": "Reach is not available in the supplied data, so I cannot state that it doubled.",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(semantic_analysis, "REPORT_DIR", tmp_path / "reports")
+    monkeypatch.setattr(semantic_analysis, "MANIFEST_PATH", tmp_path / "semantic_manifest_v3.json")
+    monkeypatch.setattr(sys, "argv", ["semantic", "--records", str(records)])
+    assert semantic_analysis.main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["summary"]["required_fact_recall"] == 1.0
 
 
 def test_non_content_eval_contracts_require_declared_fields():

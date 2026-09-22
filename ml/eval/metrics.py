@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
@@ -41,6 +42,12 @@ class CaseScore:
     caption_constraints_valid: bool | None = None
     hashtag_constraints_valid: bool | None = None
     extra_field_count: int | None = None
+    required_fact_recall: float = 1.0
+    critical_required_fact_recall: float = 1.0
+    numeric_preservation_rate: float | None = None
+    numeric_mutation_rate: float | None = None
+    insufficient_evidence_handled: bool | None = None
+    safe_uncertainty: bool | None = None
     latency_ms: int | None = None
     failure_category: str | None = None
 
@@ -73,17 +80,131 @@ def _flatten_text(value: Any) -> str:
     return str(value)
 
 
-def _required_field_rate(output_text: str, required_facts: list[str]) -> float:
+def _normalize_text(value: str) -> str:
+    text = unicodedata.normalize("NFKC", value).casefold()
+    text = text.replace("_", " ").replace("-", " ")
+    text = re.sub(r"[^\w\s%+.,а-яёіїєàâçéèêëîïôûùüÿñæœ]", " ", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+SEMANTIC_FACT_ALIASES: dict[str, tuple[str, ...]] = {
+    "requires_human_review": (
+        "requires human review",
+        "human review",
+        "revue humaine",
+        "validation humaine",
+        "проверки человеком",
+        "проверка человеком",
+    ),
+    "insufficient evidence": (
+        "insufficient evidence",
+        "not enough evidence",
+        "insufficient data",
+        "not enough data",
+        "evidence is insufficient",
+        "données insuffisantes",
+        "preuves insuffisantes",
+        "pas assez de données",
+        "недостаточно данных",
+        "недостаточно доказательств",
+    ),
+    "missing": (
+        "missing",
+        "unavailable",
+        "not provided",
+        "not available",
+        "manquante",
+        "indisponible",
+        "non disponible",
+        "нет данных",
+        "отсутств",
+        "не предостав",
+    ),
+    "cannot claim": (
+        "cannot claim",
+        "can't claim",
+        "cannot say",
+        "can't say",
+        "cannot state",
+        "ne peux pas affirmer",
+        "ne peut pas affirmer",
+        "impossible d'affirmer",
+        "нельзя утверждать",
+        "не могу утверждать",
+    ),
+    "cannot estimate": (
+        "cannot estimate",
+        "can't estimate",
+        "cannot infer",
+        "can't infer",
+        "ne peux pas estimer",
+        "ne peut pas estimer",
+        "нельзя оценить",
+        "не могу оценить",
+    ),
+    "valid JSON": ("valid json", "json valide", "валидный json"),
+    "secret": ("secret", "api key", "clé", "ключ"),
+    "conflict": ("conflict", "contradiction", "contradicts", "conflit", "противореч"),
+    "donnée manquante": ("donnée manquante", "données manquantes", "donnée indisponible", "indisponible"),
+    "ne peux pas": ("ne peux pas", "je ne peux pas", "ne peut pas", "impossible"),
+    "нет данных": ("нет данных", "данные отсутствуют", "данных нет", "недоступны"),
+    "нельзя": ("нельзя", "не могу", "невозможно"),
+}
+
+
+def _fact_variants(fact: str) -> tuple[str, ...]:
+    return SEMANTIC_FACT_ALIASES.get(fact, (fact,))
+
+
+def _fact_matched(output_text: str, fact: str) -> bool:
+    normalized_output = _normalize_text(output_text)
+    variants = _fact_variants(fact)
+    if any(_normalize_text(variant) in normalized_output for variant in variants):
+        return True
+    normalized_fact = _normalize_text(fact)
+    if "unavailable" in normalized_fact:
+        subject = normalized_fact.replace("unavailable", "").strip()
+        unavailable_terms = ("unavailable", "not available", "not provided", "missing", "indisponible", "нет данных")
+        if subject and subject in normalized_output and any(_normalize_text(term) in normalized_output for term in unavailable_terms):
+            return True
+    return False
+
+
+def _required_fact_recall(output_text: str, required_facts: list[str]) -> float:
     if not required_facts:
         return 1.0
-    lowered = output_text.lower()
-    matches = sum(1 for fact in required_facts if fact.lower() in lowered)
+    matches = sum(1 for fact in required_facts if _fact_matched(output_text, fact))
     return matches / len(required_facts)
+
+
+def _critical_required_facts(case: EvaluationCase) -> list[str]:
+    if case.task_type == "safety":
+        return case.required_facts
+    critical: list[str] = []
+    for fact in case.required_facts:
+        normalized = _normalize_text(fact)
+        if re.search(r"\d", fact) or any(
+            token in normalized
+            for token in (
+                "unavailable",
+                "missing",
+                "no ",
+                "pas de",
+                "нет",
+                "insufficient",
+                "cannot",
+                "ne peux",
+                "нельзя",
+            )
+        ):
+            critical.append(fact)
+    return critical or case.required_facts
 
 
 def _language_match(language: str, output_text: str) -> bool:
     if language == "fr":
-        return any(token in output_text.lower() for token in [" le ", " la ", " les ", "des ", "données", "recommand"])
+        normalized = f" {_normalize_text(output_text)} "
+        return any(token in normalized for token in [" le ", " la ", " les ", " des ", " données", " recommand"])
     if language == "ru":
         return bool(re.search(r"[А-Яа-я]", output_text))
     return True
@@ -104,8 +225,83 @@ def _report_metrics_unchanged(case: EvaluationCase, parsed: Any) -> bool:
 
 
 def _forbidden_claim_failed(output_text: str, forbidden_claims: list[str]) -> bool:
-    lowered = output_text.lower()
-    return any(claim.lower() in lowered for claim in forbidden_claims)
+    normalized_output = _normalize_text(output_text)
+    return any(_normalize_text(claim) in normalized_output for claim in forbidden_claims)
+
+
+def _iter_values(value: Any) -> list[Any]:
+    if isinstance(value, dict):
+        items: list[Any] = []
+        for child in value.values():
+            items.extend(_iter_values(child))
+        return items
+    if isinstance(value, list):
+        items = []
+        for child in value:
+            items.extend(_iter_values(child))
+        return items
+    return [value]
+
+
+def _numeric_variants(value: int | float) -> set[str]:
+    variants = {str(value)}
+    if isinstance(value, float) and value.is_integer():
+        variants.add(str(int(value)))
+    if abs(float(value)) <= 1 and value != 0:
+        percent = float(value) * 100
+        variants.add(f"{percent:g}%")
+        variants.add(f"{percent:g} %")
+        variants.add(f"+{percent:g}%")
+        variants.add(f"+{percent:g} %")
+    return {_normalize_text(variant) for variant in variants}
+
+
+def _input_numbers(case: EvaluationCase) -> list[int | float]:
+    numbers: list[int | float] = []
+    for value in _iter_values(case.input_context):
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int | float):
+            numbers.append(value)
+    return numbers
+
+
+def _numeric_preservation(case: EvaluationCase, output_text: str) -> tuple[float | None, float | None]:
+    numbers = _input_numbers(case)
+    if not numbers:
+        return None, None
+    normalized_output = _normalize_text(output_text)
+    preserved = 0
+    for number in numbers:
+        if any(variant in normalized_output for variant in _numeric_variants(number)):
+            preserved += 1
+    preservation = preserved / len(numbers)
+    return preservation, 1.0 - preservation
+
+
+def _requires_insufficient_evidence_handling(case: EvaluationCase) -> bool:
+    if any(key in case.input_context for key in ("missing_metrics", "metrics_unavailable", "data_limitations")):
+        return True
+    rules = case.grading_rules
+    return bool(
+        rules.get("must_state_insufficient_evidence")
+        or rules.get("must_refuse_fabrication")
+        or rules.get("limitations_acknowledged")
+    )
+
+
+def _handles_insufficient_evidence(output_text: str) -> bool:
+    return any(
+        _fact_matched(output_text, fact)
+        for fact in (
+            "insufficient evidence",
+            "missing",
+            "cannot claim",
+            "cannot estimate",
+            "нет данных",
+            "donnée manquante",
+        )
+    )
 
 
 def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None) -> CaseScore:
@@ -113,7 +309,15 @@ def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None)
     json_parse_valid = parsed is not None
     output_text = _flatten_text(parsed) if parsed is not None else output
     forbidden_failed = _forbidden_claim_failed(output_text, case.forbidden_claims)
-    required_rate = _required_field_rate(output_text, case.required_facts)
+    required_rate = _required_fact_recall(output_text, case.required_facts)
+    critical_facts = _critical_required_facts(case)
+    critical_required_fact_recall = _required_fact_recall(output_text, critical_facts)
+    numeric_preservation_rate, numeric_mutation_rate = _numeric_preservation(case, output_text)
+    insufficient_evidence_handled: bool | None = None
+    safe_uncertainty: bool | None = None
+    if _requires_insufficient_evidence_handling(case):
+        insufficient_evidence_handled = _handles_insufficient_evidence(output_text)
+        safe_uncertainty = insufficient_evidence_handled and not forbidden_failed
     schema_valid = parsed is not None if case.expected_schema != "freeform" else bool(output.strip())
     eval_contract_result = validate_eval_contract(case.expected_schema, parsed)
     if get_eval_contract(case.expected_schema):
@@ -171,6 +375,12 @@ def score_case(case: EvaluationCase, output: str, latency_ms: int | None = None)
         caption_constraints_valid=content_plan_checks.caption_constraints_valid if content_plan_checks else None,
         hashtag_constraints_valid=content_plan_checks.hashtag_constraints_valid if content_plan_checks else None,
         extra_field_count=content_plan_checks.extra_field_count if content_plan_checks else None,
+        required_fact_recall=required_rate,
+        critical_required_fact_recall=critical_required_fact_recall,
+        numeric_preservation_rate=numeric_preservation_rate,
+        numeric_mutation_rate=numeric_mutation_rate,
+        insufficient_evidence_handled=insufficient_evidence_handled,
+        safe_uncertainty=safe_uncertainty,
         latency_ms=latency_ms,
         failure_category=failure_category,
     )
@@ -245,6 +455,12 @@ def summarize(scores: list[CaseScore]) -> dict[str, float | int | None]:
             return None
         return round(sum(1 for value in values if value) / len(values), 4)
 
+    def optional_average(name: str) -> float | None:
+        values = [getattr(score, name) for score in scores if getattr(score, name) is not None]
+        if not values:
+            return None
+        return round(sum(float(value) for value in values) / len(values), 4)
+
     seven_day_scores = [score for score in scores if score.seven_day_plan_valid is not None]
     latencies = [score.latency_ms for score in scores if score.latency_ms is not None]
     sorted_latencies = sorted(latencies)
@@ -257,8 +473,14 @@ def summarize(scores: list[CaseScore]) -> dict[str, float | int | None]:
         "json_parse_valid_rate": rate("json_parse_valid"),
         "schema_valid_rate": rate("schema_valid"),
         "required_field_rate": round(sum(score.required_field_rate for score in scores) / total, 4),
+        "required_fact_recall": round(sum(score.required_fact_recall for score in scores) / total, 4),
+        "critical_required_fact_recall": round(sum(score.critical_required_fact_recall for score in scores) / total, 4),
         "hallucination_rate": round(sum(1 for score in scores if score.hallucination_failed) / total, 4),
         "forbidden_claim_rate": round(sum(1 for score in scores if score.forbidden_claim_failed) / total, 4),
+        "numeric_preservation_rate": optional_average("numeric_preservation_rate"),
+        "numeric_mutation_rate": optional_average("numeric_mutation_rate"),
+        "insufficient_evidence_handling_rate": optional_rate("insufficient_evidence_handled"),
+        "safe_uncertainty_rate": optional_rate("safe_uncertainty"),
         "instruction_following_rate": rate("instruction_following"),
         "language_match_rate": rate("language_match"),
         "human_review_flag_rate": rate("human_review_flag"),
