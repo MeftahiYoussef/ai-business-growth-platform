@@ -1,150 +1,116 @@
 # Small LLM Baseline V2
 
-- Evaluation timestamp: `2026-09-21T08:06:14Z`
+- Evaluation date: `2026-09-21`
 - Logical base model: `Qwen/Qwen3-1.7B`
 - Runtime checkpoint: `Qwen/Qwen3-1.7B-MLX-4bit`
 - Quantization: `4-bit`
-- Runtime: `mlx-lm`
+- Runtime: `mlx-lm 0.31.3`
 - Evaluation version: `golden_eval_v2`
 - Content-plan contract: `content_plan_contract_v2`
-- Raw outputs: local files under `/private/tmp/qwen_eval_outputs_v2/` only; not committed.
+- Final Qwen mode: `/no_think`, `temperature=0`, `EVAL_RESPONSE_FORMAT_MODE=none`
+- Raw outputs: ignored local files under `ml/outputs/runs/` and `/private/tmp/`
 
-## Root Cause Fixed From V1
+## Evaluator Repairs
 
-The first baseline used stale content-plan evaluation metadata and a partial seven-day gate that did not reuse the production validator. V2 moves the schema to the Django application contract, updates content-planning golden metadata, and has the evaluator call the production-compatible validator. The evaluator token budget was also raised from 2,048 to 4,096 because the canonical seven-item payload can exceed the old benchmark cap.
+The original seven-day failure was a contract mismatch. The v1 benchmark used stale content-plan metadata and a partial evaluator gate that did not reuse the production content-plan validator.
 
-## Qwen 10-Case Contract Pilot
+V2 uses the Django-owned `content_plan_contract_v2` validator for production-compatible content-plan scoring. It also adds explicit evaluation-only contracts for non-content schemas (`business_report_v1`, `trend_explanation_v1`, `competitor_summary_v1`, and `strategy_v1`) so prompts and deterministic scoring agree.
 
-```json
-{
-  "case_count": 10,
-  "hallucination_rate": 0.2,
-  "human_review_flag_rate": 0.7,
-  "instruction_following_rate": 0.1,
-  "language_match_rate": 1.0,
-  "median_latency_ms": 11881.5,
-  "p95_latency_ms": 50459,
-  "schema_valid_rate": 0.1,
-  "seven_day_plan_valid_rate": 0.0
-}
-```
+Deterministic fixture tests now cover valid canonical plans, six-item plans, duplicate days, wrong enums, wrong array-field types, false human-review flags, extra top-level text, wrong top-level shape, and multilingual captions.
+
+## Runtime Diagnostics
+
+| Diagnostic | Result |
+| --- | --- |
+| Strict JSON sanity | Passed |
+| English/French/Russian language sanity | Passed |
+| No invented reach/impressions sanity | Passed |
+| `/no_think` vs thinking | `/no_think` was faster and did not regress schema behavior |
+| Temperature `0` vs `0.2` | No material quality improvement; `0` kept for deterministic baseline |
+| MLX `response_format=json_object` | Accepted |
+| MLX `response_format=json_schema` | Accepted but not enforced |
+| Groq rate limits | Handled by checkpoint/resume; 429s are not scored as quality failures |
+
+## Groq Reference
+
+The clean Groq reference uses the same 10 representative case IDs as the Qwen pilot. Provider-side strict JSON Schema caused HTTP 400 on some non-content schemas, so the clean quality reference used prompt-only JSON mode and deterministic post-validation.
+
+| Metric | Groq `openai/gpt-oss-20b` |
+| --- | ---: |
+| Cases | 10 |
+| JSON parse validity | 0.9 |
+| Schema validity | 1.0 |
+| Seven-day validity | 1.0 |
+| Human-review flag | 1.0 |
+| Hallucination rate | 0.0 |
+| Language match | 1.0 |
+| Median latency ms | 1044 |
+| P95 latency ms | 3110 |
+
+Groq still had four required-fact misses in deterministic scoring, but no schema mismatch remains for the content-plan contract.
+
+## Qwen Base 10-Case Pilot
+
+| Metric | Qwen base |
+| --- | ---: |
+| Cases | 10 |
+| JSON parse validity | 0.9 |
+| Schema validity | 0.6 |
+| Seven-day validity | 0.0 |
+| Human-review flag | 1.0 |
+| Hallucination rate | 0.1 |
+| Language match | 1.0 |
+| Median latency ms | 6588.5 |
+| P95 latency ms | 51806 |
+
+Main failures: three `FIELD_TYPE_FAILURE` content-plan outputs and two `MISSING_REQUIRED_FIELD` non-content outputs.
+
+## Qwen Base 50-Case Frozen Benchmark
+
+| Metric | Qwen base |
+| --- | ---: |
+| Cases | 50 |
+| JSON parse validity | 0.8 |
+| Schema validity | 0.76 |
+| Seven-day validity | 0.0 |
+| Human-review flag | 1.0 |
+| Hallucination rate | 0.08 |
+| Forbidden-claim rate | 0.06 |
+| Language match | 0.98 |
+| Median latency ms | 4929 |
+| P95 latency ms | 44819 |
 
 Failure counts:
 
 ```json
 {
+  "FIELD_TYPE_FAILURE": 8,
   "INVALID_7_DAY_PLAN": 3,
-  "PASS": 1,
-  "SCHEMA_FAILURE": 6
+  "MISSING_REQUIRED_FIELD": 19
 }
 ```
 
-## By Task Type
+## Task Breakdown
 
-```json
-{
-  "business_report": {
-    "case_count": 2,
-    "failure_counts": {
-      "SCHEMA_FAILURE": 2
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  },
-  "competitor_analysis": {
-    "case_count": 1,
-    "failure_counts": {
-      "SCHEMA_FAILURE": 1
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  },
-  "content_planning": {
-    "case_count": 3,
-    "failure_counts": {
-      "INVALID_7_DAY_PLAN": 3
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  },
-  "safety": {
-    "case_count": 1,
-    "failure_counts": {
-      "PASS": 1
-    },
-    "instruction_following_rate": 1.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 1.0
-  },
-  "strategy": {
-    "case_count": 1,
-    "failure_counts": {
-      "SCHEMA_FAILURE": 1
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  },
-  "trend_intelligence": {
-    "case_count": 2,
-    "failure_counts": {
-      "SCHEMA_FAILURE": 2
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  }
-}
-```
+| Task | Cases | Schema Validity | Instruction Following | Hallucination Rate | Median Latency ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| content_planning | 11 | 0.0 | 0.0 | 0.0 | 37888 |
+| business_report | 8 | 0.875 | 0.5 | 0.125 | 3274 |
+| trend_intelligence | 8 | 1.0 | 0.75 | 0.0 | 5895.5 |
+| competitor_analysis | 6 | 1.0 | 0.6667 | 0.0 | 4682 |
+| strategy | 6 | 1.0 | 0.8333 | 0.0 | 8118.5 |
+| safety | 11 | 1.0 | 0.0909 | 0.2727 | 2043 |
 
-## By Language
+## Language Breakdown
 
-```json
-{
-  "en": {
-    "case_count": 5,
-    "failure_counts": {
-      "INVALID_7_DAY_PLAN": 1,
-      "PASS": 1,
-      "SCHEMA_FAILURE": 3
-    },
-    "instruction_following_rate": 0.2,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.2
-  },
-  "fr": {
-    "case_count": 3,
-    "failure_counts": {
-      "INVALID_7_DAY_PLAN": 1,
-      "SCHEMA_FAILURE": 2
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  },
-  "ru": {
-    "case_count": 2,
-    "failure_counts": {
-      "INVALID_7_DAY_PLAN": 1,
-      "SCHEMA_FAILURE": 1
-    },
-    "instruction_following_rate": 0.0,
-    "language_match_rate": 1.0,
-    "schema_valid_rate": 0.0
-  }
-}
-```
+| Language | Cases | Schema Validity | Language Match | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: |
+| English | 34 | 0.7647 | 1.0 | 0.0588 |
+| French | 9 | 0.7778 | 0.8889 | 0.1111 |
+| Russian | 7 | 0.7143 | 1.0 | 0.1429 |
 
-## Groq Contract Check
+## Trainability Decision
 
-- `cp-en-001`: strict schema request returned HTTP 200 and scored `seven_day_plan_valid=true` in an isolated run.
-- `cp-fr-001`: strict schema request returned HTTP 200 and scored `seven_day_plan_valid=true` in an isolated run.
-- `cp-ru-001`: strict schema diagnostic returned HTTP 200 with the canonical response format.
-- The full 10-case Groq comparison was stopped by provider HTTP 429 rate limiting. No further Groq calls were made after the rate-limit diagnosis.
+The remaining Qwen failures are mostly behavioral: JSON field typing, exact top-level fields, seven unique items, and concise instruction following. These are reasonable LoRA targets. They are not RAG targets and should not be solved by weakening validators.
 
-## Gate Decision
-
-LoRA training was not started. Qwen completed the corrected pilot, but the representative result remains too unstable for a clean full 50-case baseline: content-plan structural validity stayed at `0.0`, overall schema validity was `0.1`, and the Groq comparison set could not complete because of rate limiting. Training now would blur evaluator repair, provider-rate-limit noise, and real model behavior.
+LoRA v1 was therefore allowed after this baseline, using synthetic behavior examples only and keeping the frozen golden set untouched.

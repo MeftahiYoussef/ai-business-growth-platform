@@ -75,7 +75,9 @@ CONTENT_PLAN_SCHEMA: dict[str, Any] = {
     "required": ["summary", "primary_goal", "target_audience", "items"],
 }
 
-_ITEM_REQUIRED_FIELDS = set(CONTENT_PLAN_SCHEMA["properties"]["items"]["items"]["required"])
+CONTENT_PLAN_TOP_LEVEL_FIELDS = set(CONTENT_PLAN_SCHEMA["required"])
+CONTENT_PLAN_ITEM_REQUIRED_FIELDS = set(CONTENT_PLAN_SCHEMA["properties"]["items"]["items"]["required"])
+_ITEM_REQUIRED_FIELDS = CONTENT_PLAN_ITEM_REQUIRED_FIELDS
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,23 @@ class ValidationResult:
     valid: bool
     errors: list[str]
     normalized_payload: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ContentPlanDiagnostics:
+    valid: bool
+    top_level_shape_valid: bool
+    item_count_valid: bool
+    required_fields_valid: bool
+    array_fields_valid: bool
+    enum_valid: bool
+    unique_days_valid: bool
+    day_number_valid: bool
+    human_review_valid: bool
+    caption_constraints_valid: bool
+    hashtag_constraints_valid: bool
+    extra_field_count: int
+    errors: list[str]
 
 
 def content_plan_contract_prompt() -> str:
@@ -100,6 +119,124 @@ def content_plan_contract_prompt() -> str:
         "hashtags, source_context, and risk_flags must be arrays. "
         "requires_human_review must be true for every item. "
         "Do not include Markdown, comments, alternate top-level wrappers, approval, scheduling, or publishing."
+    )
+
+
+def analyze_content_plan_payload(payload: Any) -> ContentPlanDiagnostics:
+    validation = validate_content_plan_payload(payload)
+    if not isinstance(payload, dict):
+        return ContentPlanDiagnostics(
+            valid=False,
+            top_level_shape_valid=False,
+            item_count_valid=False,
+            required_fields_valid=False,
+            array_fields_valid=False,
+            enum_valid=False,
+            unique_days_valid=False,
+            day_number_valid=False,
+            human_review_valid=False,
+            caption_constraints_valid=False,
+            hashtag_constraints_valid=False,
+            extra_field_count=0,
+            errors=validation.errors,
+        )
+
+    extra_top_level = set(payload) - CONTENT_PLAN_TOP_LEVEL_FIELDS
+    top_level_shape_valid = CONTENT_PLAN_TOP_LEVEL_FIELDS <= set(payload) and not extra_top_level
+    primary_goal_valid = payload.get("primary_goal") in ALLOWED_OBJECTIVES
+
+    items = payload.get("items")
+    item_count_valid = isinstance(items, list) and len(items) == CONTENT_PLAN_ITEM_COUNT
+    required_fields_valid = True
+    array_fields_valid = True
+    enum_valid = primary_goal_valid
+    day_number_valid = True
+    human_review_valid = True
+    caption_constraints_valid = True
+    hashtag_constraints_valid = True
+    extra_field_count = len(extra_top_level)
+    day_numbers: list[int] = []
+
+    if not isinstance(items, list):
+        required_fields_valid = False
+        array_fields_valid = False
+        enum_valid = False
+        day_number_valid = False
+        human_review_valid = False
+        caption_constraints_valid = False
+        hashtag_constraints_valid = False
+    else:
+        for item in items:
+            if not isinstance(item, dict):
+                required_fields_valid = False
+                array_fields_valid = False
+                enum_valid = False
+                day_number_valid = False
+                human_review_valid = False
+                caption_constraints_valid = False
+                hashtag_constraints_valid = False
+                continue
+
+            missing = CONTENT_PLAN_ITEM_REQUIRED_FIELDS - set(item)
+            extra = set(item) - CONTENT_PLAN_ITEM_REQUIRED_FIELDS
+            if missing:
+                required_fields_valid = False
+            extra_field_count += len(extra)
+
+            if item.get("platform") not in ALLOWED_PLATFORMS:
+                enum_valid = False
+            if item.get("content_type") not in ALLOWED_CONTENT_TYPES:
+                enum_valid = False
+            if item.get("objective") not in ALLOWED_OBJECTIVES:
+                enum_valid = False
+
+            day_number = item.get("day_number")
+            if not isinstance(day_number, int) or not 1 <= day_number <= 7:
+                day_number_valid = False
+            else:
+                day_numbers.append(day_number)
+
+            if item.get("requires_human_review") is not True:
+                human_review_valid = False
+
+            caption = item.get("caption")
+            if not isinstance(caption, str) or not caption.strip() or len(caption) > 2200:
+                caption_constraints_valid = False
+
+            hashtags = item.get("hashtags")
+            if not isinstance(hashtags, list) or len(hashtags) > 12:
+                hashtag_constraints_valid = False
+                array_fields_valid = False
+            elif any(not isinstance(hashtag, str) or len(hashtag) > 80 for hashtag in hashtags):
+                hashtag_constraints_valid = False
+
+            for array_field, max_items, max_length in [
+                ("source_context", 8, 180),
+                ("risk_flags", 8, 180),
+            ]:
+                value = item.get(array_field)
+                if not isinstance(value, list) or len(value) > max_items:
+                    array_fields_valid = False
+                    continue
+                if any(not isinstance(entry, str) or len(entry) > max_length for entry in value):
+                    array_fields_valid = False
+
+    unique_days_valid = sorted(day_numbers) == list(range(1, 8))
+
+    return ContentPlanDiagnostics(
+        valid=validation.valid,
+        top_level_shape_valid=top_level_shape_valid,
+        item_count_valid=item_count_valid,
+        required_fields_valid=top_level_shape_valid and required_fields_valid,
+        array_fields_valid=array_fields_valid,
+        enum_valid=enum_valid,
+        unique_days_valid=unique_days_valid,
+        day_number_valid=day_number_valid,
+        human_review_valid=human_review_valid,
+        caption_constraints_valid=caption_constraints_valid,
+        hashtag_constraints_valid=hashtag_constraints_valid,
+        extra_field_count=extra_field_count,
+        errors=validation.errors,
     )
 
 

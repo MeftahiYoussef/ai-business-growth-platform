@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,10 +16,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
+from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
 
-from apps.ai.contracts.content_plan import CONTENT_PLAN_CONTRACT_VERSION, validate_content_plan_payload  # noqa: E402
+from apps.ai.contracts.content_plan import (  # noqa: E402
+    CONTENT_PLAN_CONTRACT_VERSION,
+    analyze_content_plan_payload,
+    validate_content_plan_payload,
+)
 from apps.ai.exceptions import AIConfigurationError, AIProviderError, AIValidationError  # noqa: E402
 from apps.ai.providers.factory import get_ai_provider  # noqa: E402
 from apps.ai.providers.local_llm_provider import LocalLLMProvider  # noqa: E402
@@ -149,6 +155,71 @@ def test_content_plan_golden_cases_use_current_contract():
     assert {case.expected_schema for case in content_cases} == {CONTENT_PLAN_CONTRACT_VERSION}
 
 
+def _content_plan_case():
+    return next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "cp-en-001")
+
+
+def test_content_plan_evaluator_fixture_matrix():
+    valid_plan = valid_content_plan()
+    fixtures = []
+
+    fixtures.append(("VALID_CANONICAL_PLAN", valid_plan, True, "valid"))
+
+    six_item_plan = deepcopy(valid_plan)
+    six_item_plan["items"] = six_item_plan["items"][:6]
+    fixtures.append(("SIX_ITEM_PLAN", six_item_plan, False, "item_count_valid"))
+
+    duplicate_day_plan = deepcopy(valid_plan)
+    duplicate_day_plan["items"][1]["day_number"] = 1
+    fixtures.append(("DUPLICATE_DAY_PLAN", duplicate_day_plan, False, "unique_days_valid"))
+
+    wrong_enum_plan = deepcopy(valid_plan)
+    wrong_enum_plan["items"][0]["platform"] = "telegram"
+    fixtures.append(("WRONG_ENUM_PLAN", wrong_enum_plan, False, "enum_valid"))
+
+    wrong_array_field_plan = deepcopy(valid_plan)
+    wrong_array_field_plan["items"][0]["source_context"] = "trend signal"
+    fixtures.append(("WRONG_ARRAY_FIELD_PLAN", wrong_array_field_plan, False, "array_fields_valid"))
+
+    human_review_false_plan = deepcopy(valid_plan)
+    human_review_false_plan["items"][0]["requires_human_review"] = False
+    fixtures.append(("HUMAN_REVIEW_FALSE_PLAN", human_review_false_plan, False, "human_review_valid"))
+
+    wrong_top_level_shape = {"content_plan": valid_plan["items"]}
+    fixtures.append(("WRONG_TOP_LEVEL_SHAPE", wrong_top_level_shape, False, "top_level_shape_valid"))
+
+    multilingual_plan = deepcopy(valid_plan)
+    multilingual_plan["summary"] = "Plan bilingue avec contenus français et russes."
+    multilingual_plan["target_audience"] = "Fondateurs et предприниматели"
+    multilingual_plan["items"][0]["caption"] = "Publiez un conseil utile pour les fondateurs."
+    multilingual_plan["items"][1]["caption"] = "Опишите один практический совет для предпринимателей."
+    fixtures.append(("VALID_MULTILINGUAL_CONTENT", multilingual_plan, True, "valid"))
+
+    case = _content_plan_case()
+    for fixture_name, payload, expected_valid, failed_layer in fixtures:
+        production_result = validate_content_plan_payload(payload)
+        diagnostics = analyze_content_plan_payload(payload)
+        score = score_case(case, json.dumps(payload))
+
+        assert production_result.valid is expected_valid, fixture_name
+        assert diagnostics.valid is expected_valid, fixture_name
+        assert score.schema_valid is expected_valid, fixture_name
+        assert score.seven_day_plan_valid is expected_valid, fixture_name
+        assert score.human_review_flag is (diagnostics.human_review_valid if not expected_valid else True), fixture_name
+
+        if failed_layer != "valid":
+            assert getattr(diagnostics, failed_layer) is False, fixture_name
+
+
+def test_content_plan_evaluator_rejects_extra_top_level_text():
+    case = _content_plan_case()
+    score = score_case(case, f"Here is the plan: {json.dumps(valid_content_plan())}")
+    assert score.json_parse_valid is False
+    assert score.schema_valid is False
+    assert score.seven_day_plan_valid is False
+    assert score.failure_category == "SCHEMA_FAILURE"
+
+
 def test_deterministic_content_plan_grading():
     case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "cp-en-001")
     output = json.dumps({
@@ -189,6 +260,37 @@ def test_report_metric_hallucination_is_detected():
     assert score.hallucination_failed is True
 
 
+def test_non_content_eval_contracts_require_declared_fields():
+    result = validate_eval_contract(
+        "business_report_v1",
+        {"metrics": {"content_total": 1}, "recommendations": [], "data_limitations": []},
+    )
+    assert result.valid is True
+
+    result = validate_eval_contract("business_report_v1", {"metrics": {"content_total": 1}})
+    assert result.valid is False
+    assert "recommendations" in " ".join(result.errors)
+
+    prompt = eval_contract_prompt("business_report_v1")
+    assert "Return JSON only" in prompt
+    assert "metrics, recommendations, data_limitations" in prompt
+
+
+def test_non_content_schema_scoring_uses_eval_contract():
+    case = next(case for case in load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl") if case.id == "report-en-001")
+    valid_output = json.dumps({
+        "metrics": case.input_context["metrics"],
+        "recommendations": ["Review the draft pipeline."],
+        "data_limitations": ["No reach data"],
+    })
+    assert score_case(case, valid_output).schema_valid is True
+
+    missing_field_output = json.dumps({"metrics": case.input_context["metrics"]})
+    score = score_case(case, missing_field_output)
+    assert score.schema_valid is False
+    assert score.failure_category == "MISSING_REQUIRED_FIELD"
+
+
 def test_summary_metrics_are_deterministic():
     cases = load_cases(ROOT / "ml" / "eval" / "cases" / "golden.jsonl")[:2]
     scores = [score_case(case, "{}") for case in cases]
@@ -207,7 +309,8 @@ def test_eval_runner_sanitizes_model_request_failures(monkeypatch, capsys):
         exit_code = eval_runner_main()
     captured = json.loads(capsys.readouterr().out)
     assert exit_code == 2
-    assert captured["error"] == "model_request_failed"
+    assert captured["error"] == "MODEL_FAILURE"
+    assert captured["case_id"] == "cp-en-001"
     assert "Traceback" not in captured["message"]
     assert "Qwen/Qwen3-1.7B" == captured["model"]
 

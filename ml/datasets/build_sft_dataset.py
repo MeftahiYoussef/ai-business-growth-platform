@@ -4,8 +4,16 @@ import argparse
 import json
 import random
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[2]
+DJANGO_BACKEND = ROOT / "django-backend"
+if str(DJANGO_BACKEND) not in sys.path:
+    sys.path.insert(0, str(DJANGO_BACKEND))
+
+from apps.ai.contracts.content_plan import validate_content_plan_payload  # noqa: E402
 
 SECRET_PATTERNS = [
     re.compile(r"gsk_[A-Za-z0-9_-]+"),
@@ -32,6 +40,15 @@ def _validate_record(record: dict[str, Any]) -> dict[str, Any]:
     serialized = json.dumps(record, ensure_ascii=False)
     if _contains_secret(serialized):
         raise ValueError("Record appears to contain a secret or credential-bearing URL")
+    task = record.get("task") or record.get("task_type")
+    if task == "content_planning":
+        try:
+            payload = json.loads(str(assistant))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Content-plan assistant answer must be JSON") from exc
+        result = validate_content_plan_payload(payload)
+        if not result.valid:
+            raise ValueError(f"Content-plan assistant answer violates content_plan_contract_v2: {result.errors[0]}")
     return record
 
 
@@ -52,7 +69,8 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def write_split(path: Path, records: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(json.dumps(record, ensure_ascii=False, sort_keys=True) for record in records) + "\n", encoding="utf-8")
+    content = "\n".join(json.dumps(record, ensure_ascii=False, sort_keys=True) for record in records)
+    path.write_text(content + ("\n" if content else ""), encoding="utf-8")
 
 
 def main() -> int:

@@ -133,12 +133,17 @@ docs/SMALL_LLM_BASELINE_V2.md
 
 Baseline v2 uses the production-owned content-plan contract
 `content_plan_contract_v2` and freezes the corrected golden set as
-`golden_eval_v2`. The first Qwen pilot against that corrected contract still
-failed the seven-day content-plan gate, while Groq strict-schema content-plan
-diagnostics passed before the comparison run hit provider rate limiting. LoRA
-training remains blocked until the Groq reference comparison can complete
-cleanly and Qwen failures are confirmed as training targets rather than prompt,
-budget, or evaluator issues.
+`golden_eval_v2`. The clean Groq reference completed with prompt-only JSON mode
+and deterministic post-validation. Qwen3-1.7B completed the full 50-case frozen
+baseline, then LoRA v1 trained locally on synthetic behavior examples.
+
+The LoRA v1 pilot did not improve the product-critical structural metrics, so
+the full LoRA frozen evaluation was intentionally not run. Current reports:
+
+```text
+docs/SMALL_LLM_BASELINE_V2.md
+docs/SMALL_LLM_LORA_V1.md
+```
 
 ## Metrics
 

@@ -65,5 +65,6 @@ wandb/
 huggingface-cache/
 *.safetensors
 *.gguf
+ml/outputs/
 ml/eval/results/
 ml/eval/tmp/
