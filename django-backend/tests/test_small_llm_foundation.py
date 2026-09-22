@@ -23,6 +23,7 @@ from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
 from apps.ai.contracts.content_plan import (  # noqa: E402
     CONTENT_PLAN_CONTRACT_VERSION,
     analyze_content_plan_payload,
+    content_plan_serving_schema,
     validate_content_plan_payload,
 )
 from apps.ai.exceptions import AIConfigurationError, AIProviderError, AIValidationError  # noqa: E402
@@ -146,6 +147,16 @@ def test_content_plan_contract_validator_matches_application_shape():
     result = validate_content_plan_payload(invalid_plan)
     assert result.valid is False
     assert any("caption" in error for error in result.errors)
+
+
+def test_content_plan_ordered_serving_schema_is_derived_from_contract():
+    schema = content_plan_serving_schema(ordered_days=True)
+    items_schema = schema["properties"]["items"]["prefixItems"]
+    assert len(items_schema) == 7
+    assert [item["properties"]["day_number"]["const"] for item in items_schema] == list(range(1, 8))
+    assert items_schema[0]["properties"]["source_context"]["type"] == "array"
+    assert items_schema[0]["properties"]["requires_human_review"]["const"] is True
+    assert schema["properties"]["items"]["items"] is False
 
 
 def test_content_plan_golden_cases_use_current_contract():
@@ -382,6 +393,15 @@ def test_model_registry_contains_qwen_baseline():
     assert registry[0]["model_id"] == "Qwen/Qwen3-1.7B"
     assert registry[0]["fine_tuned"] is False
     assert registry[0]["rag_enabled"] is False
+
+
+def test_runtime_capabilities_record_schema_enforcement():
+    capabilities = json.loads((ROOT / "ml" / "configs" / "runtime_capabilities.json").read_text(encoding="utf-8"))
+    by_name = {item["name"]: item for item in capabilities}
+    assert by_name["mlx-lm-qwen3-1.7b"]["supports_json_schema"] is True
+    assert by_name["mlx-lm-qwen3-1.7b"]["enforces_json_schema"] is False
+    assert by_name["llama-cpp-qwen3-1.7b-q4-k-m"]["supports_json_schema"] is True
+    assert by_name["llama-cpp-qwen3-1.7b-q4-k-m"]["enforces_json_schema"] is True
 
 
 def test_rag_plan_documents_tenant_isolation():

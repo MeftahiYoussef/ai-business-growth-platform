@@ -28,6 +28,27 @@ Then run:
 python -m ml.eval.runner --provider local --model Qwen/Qwen3-1.7B --limit 10
 ```
 
+For constrained-decoding diagnostics, use local llama.cpp with the GGUF runtime
+checkpoint:
+
+```bash
+llama-server \
+  --model ml/outputs/models/qwen3-1.7b-gguf/Qwen3-1.7B-Q4_K_M.gguf \
+  --host 127.0.0.1 \
+  --port 8081 \
+  --temp 0 \
+  --ctx-size 8192 \
+  --reasoning off
+
+EVAL_RESPONSE_FORMAT_MODE=schema \
+EVAL_TEMPERATURE=0 \
+LOCAL_LLM_BASE_URL=http://127.0.0.1:8081/v1 \
+python -m ml.eval.runner --provider local --model Qwen3-1.7B-Q4_K_M --limit 10
+```
+
+The llama.cpp runtime is local experimental tooling only. It is not a Railway,
+Vercel, or production dependency.
+
 For Groq comparison, use the existing provider only from an explicitly
 configured shell:
 
