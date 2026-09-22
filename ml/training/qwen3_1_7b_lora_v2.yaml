@@ -3,7 +3,7 @@
 model: Qwen/Qwen3-1.7B
 training_checkpoint: Qwen/Qwen3-1.7B-MLX-4bit
 fine_tune_type: lora
-data: ml/datasets/splits/qwen3_sft_v2
+data: ml/datasets/qwen3_sft_v2/splits
 adapter_path: ml/outputs/adapters/qwen3_1_7b_lora_v2
 
 # Supported by mlx-lm 0.31.3 `python -m mlx_lm lora`.
@@ -38,7 +38,7 @@ not_goal:
 
 future_command: >-
   python -m mlx_lm lora --train --model Qwen/Qwen3-1.7B-MLX-4bit
-  --data ml/datasets/splits/qwen3_sft_v2 --fine-tune-type lora
+  --data ml/datasets/qwen3_sft_v2/splits --fine-tune-type lora
   --adapter-path ml/outputs/adapters/qwen3_1_7b_lora_v2 --batch-size 1
   --iters 240 --val-batches -1 --learning-rate 0.00005
   --steps-per-report 10 --steps-per-eval 40 --grad-accumulation-steps 8
