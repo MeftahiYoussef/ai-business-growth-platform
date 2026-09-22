@@ -281,10 +281,15 @@ def _ai_sections(*, business: Business, report: dict[str, Any]) -> tuple[dict[st
     recommendations = result.parsed_data.get("recommendations", [])
     if not all(item.get("requires_human_review") is True for item in recommendations if isinstance(item, dict)):
         raise AIValidationError("AI report recommendations must require human review")
+    total_tokens = (
+        result.input_tokens + result.output_tokens
+        if result.input_tokens is not None and result.output_tokens is not None
+        else None
+    )
     usage = {
         "input_tokens": result.input_tokens,
         "output_tokens": result.output_tokens,
-        "total_tokens": result.input_tokens + result.output_tokens,
+        "total_tokens": total_tokens,
         "provider": result.provider,
         "model": result.model,
         "request_id": result.request_id or "",

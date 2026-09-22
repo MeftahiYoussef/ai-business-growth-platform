@@ -2,7 +2,16 @@ from typing import Any
 
 from rest_framework import serializers
 
-from apps.ai.prompts.content_plan import SUPPORTED_CONTENT_TYPES, SUPPORTED_OBJECTIVES, SUPPORTED_PLATFORMS
+from apps.ai.contracts.content_plan import (
+    ALLOWED_CONTENT_TYPES,
+    ALLOWED_OBJECTIVES,
+    ALLOWED_PLATFORMS,
+    validate_content_plan_payload,
+)
+
+SUPPORTED_PLATFORMS = ALLOWED_PLATFORMS
+SUPPORTED_CONTENT_TYPES = ALLOWED_CONTENT_TYPES
+SUPPORTED_OBJECTIVES = ALLOWED_OBJECTIVES
 
 
 class ContentPlanItemSerializer(serializers.Serializer):
@@ -44,6 +53,9 @@ class ContentPlanSerializer(serializers.Serializer):
 
 
 def validate_content_plan(data: Any) -> dict[str, Any]:
+    contract_result = validate_content_plan_payload(data)
+    if not contract_result.valid:
+        raise serializers.ValidationError({"content_plan": contract_result.errors})
     serializer = ContentPlanSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     return serializer.validated_data

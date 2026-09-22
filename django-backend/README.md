@@ -112,6 +112,32 @@ True
 
 If Groq returns rate-limit errors, the API responds with `429`. Free-tier limits may change; reduce request frequency or update the GroqCloud plan.
 
+## Experimental Local Small LLM
+
+The repository includes an experimental OpenAI-compatible local provider for
+model-lab evaluation only. Groq remains the production default and the provider
+factory does not silently fall back to a local model.
+
+Server-side settings:
+
+```env
+SMALL_LLM_EXPERIMENT_ENABLED=false
+LOCAL_LLM_ENABLED=false
+LOCAL_LLM_BASE_URL=http://127.0.0.1:8080/v1
+LOCAL_LLM_MODEL=Qwen/Qwen3-1.7B
+LOCAL_LLM_TIMEOUT_SECONDS=120
+LOCAL_LLM_MAX_OUTPUT_TOKENS=2048
+```
+
+Local evaluation command:
+
+```bash
+LOCAL_LLM_ENABLED=true .venv/bin/python manage.py evaluate_small_llm --provider local --model Qwen/Qwen3-1.7B --limit 10
+```
+
+Do not expose local model settings through frontend variables. Do not commit
+model weights, caches, adapters, or evaluation outputs.
+
 ## Asynchronous AI Generation
 
 The weekly content-plan API now supports an asynchronous queue path while the existing synchronous endpoint remains available:

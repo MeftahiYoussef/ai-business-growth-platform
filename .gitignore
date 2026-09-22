@@ -55,3 +55,16 @@ pnpm-debug.log*
 tmp/
 temp/
 .cache/
+
+# Local model lab artifacts. Model weights and evaluation output stay outside Git.
+models/
+checkpoints/
+adapters/
+outputs/
+wandb/
+huggingface-cache/
+*.safetensors
+*.gguf
+ml/outputs/
+ml/eval/results/
+ml/eval/tmp/

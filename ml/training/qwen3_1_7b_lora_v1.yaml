@@ -1,0 +1,32 @@
+# Future experiment only. Do not run during baseline evaluation.
+model: Qwen/Qwen3-1.7B
+fine_tune_type: lora
+data: ml/datasets/splits/qwen3_sft_v1
+adapter_path: ml/outputs/adapters/qwen3_1_7b_lora_v1
+
+# Supported by mlx_lm.lora 0.31.3 config.
+lora_parameters:
+  rank: 8
+  dropout: 0.0
+  scale: 20.0
+
+optimizer: adamw
+batch_size: 1
+grad_accumulation_steps: 8
+learning_rate: 0.0001
+max_seq_length: 4096
+iters: 120
+val_batches: -1
+steps_per_report: 10
+steps_per_eval: 40
+save_every: 60
+num_layers: 16
+mask_prompt: true
+grad_checkpoint: true
+seed: 20260921
+
+notes:
+  goal: "Behavior alignment for schema discipline, no invented metrics, multilingual project tasks."
+  not_goal: "Knowledge injection, business fact memorization, trend fact memorization."
+  dataset: "153 train / 18 validation / 9 local MLX test synthetic examples."
+  actual_command: "mlx_lm.lora --train --model Qwen/Qwen3-1.7B-MLX-4bit --data ml/datasets/splits/qwen3_sft_v1 --fine-tune-type lora --adapter-path ml/outputs/adapters/qwen3_1_7b_lora_v1 --batch-size 1 --iters 120 --val-batches -1 --learning-rate 0.0001 --steps-per-report 10 --steps-per-eval 40 --grad-accumulation-steps 8 --save-every 60 --max-seq-length 4096 --num-layers 16 --mask-prompt --grad-checkpoint --seed 20260921"

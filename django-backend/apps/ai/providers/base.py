@@ -9,8 +9,8 @@ class AIProviderResult:
     parsed_data: dict[str, Any] | list[Any] | None
     provider: str
     model: str
-    input_tokens: int = 0
-    output_tokens: int = 0
+    input_tokens: int | None = 0
+    output_tokens: int | None = 0
     request_id: str | None = None
     finish_reason: str | None = None
 
