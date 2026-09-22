@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
+from ml.datasets import generate_sft_v2  # noqa: E402
 from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
@@ -426,6 +427,60 @@ def test_dataset_builder_allows_no_test_split(tmp_path, monkeypatch, capsys):
     result = json.loads(capsys.readouterr().out)
     assert result == {"test": 0, "train": 9, "validation": 1}
     assert not (output_dir / "test.jsonl").read_text(encoding="utf-8").strip()
+
+
+def test_sft_v2_generator_quality_gates(tmp_path):
+    old_root = generate_sft_v2.DATASET_ROOT
+    generate_sft_v2.DATASET_ROOT = tmp_path / "qwen3_sft_v2"
+    try:
+        candidates = generate_sft_v2.generate_candidates()
+        seen_hashes: set[str] = set()
+        accepted = []
+        rejected = []
+        for candidate in candidates:
+            result = generate_sft_v2._validate_candidate(candidate, seen_hashes)
+            if result.accepted:
+                accepted.append(result.record)
+            else:
+                rejected.append(result)
+        manifest = generate_sft_v2._write_outputs(candidates, accepted, rejected)
+    finally:
+        generate_sft_v2.DATASET_ROOT = old_root
+
+    assert manifest["accepted_count"] == 360
+    assert manifest["rejected_count"] == 12
+    assert manifest["exact_duplicate_count"] == 0
+    assert manifest["near_duplicate_rate"] == 0.0
+    assert manifest["golden_leakage_count"] == 0
+    assert manifest["language_distribution"] == {"en": 144, "fr": 108, "ru": 108}
+    assert manifest["difficulty_distribution"] == {"easy": 72, "hard": 108, "medium": 180}
+    assert manifest["train_count"] == 324
+    assert manifest["validation_count"] == 36
+
+
+def test_sft_v2_group_split_keeps_families_isolated():
+    candidates = generate_sft_v2.generate_candidates()
+    seen_hashes: set[str] = set()
+    accepted = [
+        result.record
+        for candidate in candidates
+        if (result := generate_sft_v2._validate_candidate(candidate, seen_hashes)).accepted
+    ]
+    train, validation = generate_sft_v2._split_records(accepted)
+    train_families = {record["family_id"] for record in train}
+    validation_families = {record["family_id"] for record in validation}
+    assert train_families.isdisjoint(validation_families)
+    assert len(validation_families) == 9
+
+
+def test_sft_v2_validation_rejects_bad_examples():
+    secret = generate_sft_v2._make_invalid_record(1, "secret_like")
+    invented = generate_sft_v2._make_invalid_record(2, "invented_metric")
+    mutated = generate_sft_v2._make_invalid_record(3, "numeric_mutation")
+    seen_hashes: set[str] = set()
+    assert generate_sft_v2._validate_candidate(secret, seen_hashes).accepted is False
+    assert generate_sft_v2._validate_candidate(invented, seen_hashes).rejection_reason == "invented_unavailable_metric"
+    assert generate_sft_v2._validate_candidate(mutated, seen_hashes).rejection_reason == "numeric_mutation"
 
 
 def test_model_registry_contains_qwen_baseline():

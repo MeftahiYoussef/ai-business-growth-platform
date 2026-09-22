@@ -190,11 +190,12 @@ Next possible experiment:
 - structural guardrail: JSON Schema constrained decoding plus production validation
 - non-goal: memorizing business data
 
-The v2 curriculum is currently a blueprint, not a training dataset. It targets
-hallucination resistance, required-fact retention, numeric preservation,
-insufficient-evidence behavior, report interpretation, trend metric fidelity,
-competitor fact fidelity, recommendation-vs-fact separation, and difficult
-French/Russian cases.
+The v2 curriculum has been generated as `qwen3_sft_v2` with 360 accepted
+synthetic/non-private examples, 324 train records, and 36 validation records.
+It targets hallucination resistance, required-fact retention, numeric
+preservation, insufficient-evidence behavior, report interpretation, trend
+metric fidelity, competitor fact fidelity, recommendation-vs-fact separation,
+and difficult French/Russian cases. LoRA v2 has not been trained.
 
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
 deterministic train/validation/test splits. It rejects obvious secrets,

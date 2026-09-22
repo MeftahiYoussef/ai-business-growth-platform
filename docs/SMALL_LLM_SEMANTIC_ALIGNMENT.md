@@ -50,6 +50,21 @@ a benchmark artifact.
 
 ## SFT Curriculum V2
 
+The first SFT v2 dataset has been generated as `qwen3_sft_v2` and remains
+local training preparation only. LoRA v2 has not been trained.
+
+Dataset summary:
+
+- generated candidates: 372
+- accepted examples: 360
+- rejected examples: 12
+- train examples: 324
+- validation examples: 36
+- exact duplicates: 0
+- near duplicates: 0
+- golden leakage findings: 0
+- English/French/Russian split: 144 / 108 / 108
+
 LoRA v2, if approved later, should teach semantic behavior only:
 
 - hallucination resistance;
@@ -106,6 +121,5 @@ facts must not be baked into adapter weights.
 
 ## Next Step
 
-Generate and audit the SFT v2 dataset from the approved curriculum blueprint.
-Do not train LoRA v2 until the dataset quality audit, grouped split, and leakage
-checks pass.
+Human-review the generated SFT v2 dataset, then decide whether to run the first
+LoRA v2 training task. Do not train LoRA v2 in the dataset-generation task.

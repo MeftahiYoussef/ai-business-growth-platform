@@ -1,0 +1,57 @@
+{
+  "accepted_count": 360,
+  "behavior_distribution": {
+    "adversarial_fabrication_resistance": 200,
+    "business_reports": 36,
+    "competitor_fact_fidelity": 16,
+    "difficult_multilingual": 36,
+    "fact_vs_recommendation": 16,
+    "hallucination_resistance": 72,
+    "insufficient_evidence": 36,
+    "numeric_preservation": 416,
+    "required_fact_retention": 56,
+    "safe_uncertainty": 360,
+    "trend_metric_fidelity": 36
+  },
+  "candidate_count": 372,
+  "content_hashes": {
+    "accepted": "d5585e53ef00db3d31871d015b0f975b10d6796f07b965c315573440c670bd18",
+    "train": "82405f00422db433c0520683f9adbb9ba09922351f13422e7c4c70a6c0d6111d",
+    "validation": "8b73713cf18b76d12f79ac245012e13b6f30d5049f76b7bb2c4a675d169b342b"
+  },
+  "created_at": "2026-09-22T16:06:48Z",
+  "dataset_version": "qwen3_sft_v2",
+  "difficulty_distribution": {
+    "easy": 72,
+    "hard": 108,
+    "medium": 180
+  },
+  "exact_duplicate_count": 0,
+  "family_count": 90,
+  "golden_leakage_count": 0,
+  "language_distribution": {
+    "en": 144,
+    "fr": 108,
+    "ru": 108
+  },
+  "near_duplicate_count": 0,
+  "near_duplicate_rate": 0.0,
+  "rejected_count": 12,
+  "rejection_reasons": {
+    "Assistant answer cannot be empty": 2,
+    "Record appears to contain a secret or credential-bearing URL": 2,
+    "invented_unavailable_metric": 4,
+    "numeric_mutation": 4
+  },
+  "split_algorithm": "group-aware by family_id; one family per category held out for validation",
+  "split_seed": 20260922,
+  "task_distribution": {
+    "business_report": 36,
+    "competitor_analysis": 16,
+    "safety": 144,
+    "strategy": 72,
+    "trend_intelligence": 92
+  },
+  "train_count": 324,
+  "validation_count": 36
+}
