@@ -101,9 +101,26 @@ serving plus curriculum-improvement path.
 Do not begin RAG yet. RAG remains the future solution for dynamic knowledge, not
 for structural JSON enforcement.
 
+## Semantic Follow-Up
+
+The follow-up semantic audit keeps the same constrained-serving assumption and
+rescored the existing 50-case output without new model calls:
+
+- instruction following: 0.58
+- required fact recall: 0.76
+- critical required fact recall: 0.7567
+- numeric preservation: 0.84
+- insufficient-evidence handling: 0.2632
+- hallucination/forbidden-claim rate: 0.06
+
+This confirms the next curriculum should target semantic behavior, not JSON
+formatting. See `docs/SMALL_LLM_SEMANTIC_ALIGNMENT.md`.
+
 ## Detailed Reports
 
 ```text
 ml/eval/reports/llama_cpp_constrained_decoding.md
 ml/training/reports/lora_v1_failure_analysis.md
+ml/eval/reports/semantic_evaluator_audit.md
+ml/eval/reports/semantic_failure_clusters.md
 ```

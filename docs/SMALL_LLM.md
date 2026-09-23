@@ -146,8 +146,13 @@ Current reports:
 ```text
 docs/SMALL_LLM_BASELINE_V2.md
 docs/SMALL_LLM_LORA_V1.md
+docs/SMALL_LLM_SEMANTIC_ALIGNMENT.md
 ml/eval/reports/llama_cpp_constrained_decoding.md
+ml/eval/reports/semantic_evaluator_audit.md
+ml/eval/reports/semantic_safety_forensics.md
+ml/eval/reports/semantic_failure_clusters.md
 ml/training/reports/lora_v1_failure_analysis.md
+ml/training/reports/sft_v2_quality_audit.md
 ```
 
 ## Metrics
@@ -156,8 +161,14 @@ The deterministic evaluator measures:
 
 - `schema_valid_rate`
 - `required_field_rate`
+- `required_fact_recall`
+- `critical_required_fact_recall`
 - `hallucination_rate`
 - `forbidden_claim_rate`
+- `numeric_preservation_rate`
+- `numeric_mutation_rate`
+- `insufficient_evidence_handling_rate`
+- `safe_uncertainty_rate`
 - `instruction_following_rate`
 - `language_match_rate`
 - `human_review_flag_rate`
@@ -174,10 +185,17 @@ not deployed, and not a production model path.
 Next possible experiment:
 
 - model: `Qwen/Qwen3-1.7B`
-- method: LoRA v2
+- method: LoRA v2, not yet trained
 - target: semantic fidelity, refusal behavior, multilingual instruction following
 - structural guardrail: JSON Schema constrained decoding plus production validation
 - non-goal: memorizing business data
+
+The v2 curriculum has been generated as `qwen3_sft_v2` with 360 accepted
+synthetic/non-private examples, 324 train records, and 36 validation records.
+It targets hallucination resistance, required-fact retention, numeric
+preservation, insufficient-evidence behavior, report interpretation, trend
+metric fidelity, competitor fact fidelity, recommendation-vs-fact separation,
+and difficult French/Russian cases. LoRA v2 has not been trained.
 
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
 deterministic train/validation/test splits. It rejects obvious secrets,

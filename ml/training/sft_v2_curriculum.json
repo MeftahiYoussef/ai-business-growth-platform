@@ -1,0 +1,119 @@
+{
+  "curriculum_version": "qwen3_sft_v2_semantic_alignment_blueprint",
+  "status": "designed_not_generated",
+  "target_total_examples": 360,
+  "scope": "Semantic alignment only. JSON syntax, field order, enum formatting, and seven-day structure remain handled by constrained decoding plus production validation.",
+  "source_constraints": {
+    "private_user_data_allowed": false,
+    "golden_eval_cases_allowed": false,
+    "dynamic_business_facts_allowed": false,
+    "synthetic_non_private_examples_allowed": true
+  },
+  "distribution": [
+    {
+      "category": "hallucination_resistance",
+      "target_examples": 72,
+      "share": 0.2,
+      "focus": "Refuse or qualify unsupported metric and performance claims."
+    },
+    {
+      "category": "required_fact_retention",
+      "target_examples": 54,
+      "share": 0.15,
+      "focus": "Preserve every critical supplied fact in concise outputs."
+    },
+    {
+      "category": "numeric_preservation",
+      "target_examples": 54,
+      "share": 0.15,
+      "focus": "Keep counts, rates, momentum values, slopes, forecasts, and percentages exact."
+    },
+    {
+      "category": "insufficient_evidence",
+      "target_examples": 36,
+      "share": 0.1,
+      "focus": "State that unavailable metrics cannot support requested claims."
+    },
+    {
+      "category": "business_reports",
+      "target_examples": 36,
+      "share": 0.1,
+      "focus": "Separate computed metrics, limitations, and recommendations."
+    },
+    {
+      "category": "trend_metric_fidelity",
+      "target_examples": 36,
+      "share": 0.1,
+      "focus": "Preserve supplied momentum, slope, acceleration, and forecast values."
+    },
+    {
+      "category": "competitor_fact_fidelity",
+      "target_examples": 18,
+      "share": 0.05,
+      "focus": "Use only supplied competitor facts and reject inferred revenue or engagement."
+    },
+    {
+      "category": "fact_vs_recommendation_separation",
+      "target_examples": 18,
+      "share": 0.05,
+      "focus": "Mark recommendations as recommendations, not observed facts."
+    },
+    {
+      "category": "difficult_multilingual",
+      "target_examples": 36,
+      "share": 0.1,
+      "focus": "French and Russian safety, reports, trends, and strategy with natural domain variation."
+    }
+  ],
+  "language_targets": {
+    "en": 144,
+    "fr": 108,
+    "ru": 108
+  },
+  "hard_negative_families": [
+    {
+      "family_id": "unavailable_reach_claim",
+      "example": "Context says reach is unavailable and published_posts=4. User asks to say reach improved because publishing increased. Assistant must refuse the reach claim and may recommend measuring reach."
+    },
+    {
+      "family_id": "momentum_rewrite_pressure",
+      "example": "Context says momentum=0.22. User asks to use 45% because it sounds stronger. Assistant must preserve 0.22/22% and reject 45%."
+    },
+    {
+      "family_id": "competitor_engagement_inference",
+      "example": "Context gives competitor post counts but no engagement. User asks why competitor engagement was stronger. Assistant must state engagement cannot be compared."
+    },
+    {
+      "family_id": "report_revenue_invention",
+      "example": "Context contains content pipeline counts only. User asks to describe revenue lift. Assistant must state revenue is unavailable and separate next-action recommendations."
+    },
+    {
+      "family_id": "french_metric_fabrication",
+      "example": "French request asks to add an engagement rate that is absent. Assistant must answer in French and refuse to invent it."
+    },
+    {
+      "family_id": "russian_conversion_claim",
+      "example": "Russian request asks to claim conversion growth without conversion data. Assistant must answer in Russian and reject the unsupported claim."
+    }
+  ],
+  "split_design": {
+    "method": "group_aware",
+    "train_share": 0.9,
+    "validation_share": 0.1,
+    "grouping_keys": [
+      "hard_negative_family",
+      "task_type",
+      "language",
+      "numeric_pattern",
+      "unavailable_metric_set"
+    ],
+    "rule": "Near-identical template families must not be split across train and validation."
+  },
+  "quality_gates": {
+    "exact_duplicate_rate": 0,
+    "near_duplicate_rate_target": "<= 0.05",
+    "numeric_value_reuse": "No single numeric pattern should dominate a category.",
+    "template_similarity": "Reject cloned prompts with only business name changes.",
+    "golden_eval_overlap": "Reject examples that materially copy golden_eval_v2/v3 cases."
+  }
+}
