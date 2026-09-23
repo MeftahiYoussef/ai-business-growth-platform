@@ -24,8 +24,8 @@ if str(DJANGO_BACKEND) not in sys.path:
 
 from apps.ai.contracts.content_plan import (  # noqa: E402
     CONTENT_PLAN_CONTRACT_VERSION,
-    CONTENT_PLAN_SCHEMA,
     content_plan_contract_prompt,
+    content_plan_serving_schema,
 )
 
 DEFAULT_CASES = LAB_ROOT / "eval" / "cases" / "golden.jsonl"
@@ -263,12 +263,14 @@ def generate_output(case: EvaluationCase, *, provider: str, model: str) -> tuple
         system = f"{system} {content_plan_contract_prompt()}"
         user_payload["contract_version"] = CONTENT_PLAN_CONTRACT_VERSION
         user_payload["canonical_contract"] = content_plan_contract_prompt()
+        serving_schema_mode = os.environ.get("EVAL_CONTENT_PLAN_SERVING_SCHEMA", "standard").lower()
+        serving_schema = content_plan_serving_schema(ordered_days=serving_schema_mode == "ordered_days")
         response_format = {
             "type": "json_schema",
             "json_schema": {
                 "name": CONTENT_PLAN_CONTRACT_VERSION,
                 "strict": True,
-                "schema": CONTENT_PLAN_SCHEMA,
+                "schema": serving_schema,
             },
         }
     elif case.expected_schema != "freeform":

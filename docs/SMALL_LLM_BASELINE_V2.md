@@ -114,3 +114,23 @@ Failure counts:
 The remaining Qwen failures are mostly behavioral: JSON field typing, exact top-level fields, seven unique items, and concise instruction following. These are reasonable LoRA targets. They are not RAG targets and should not be solved by weakening validators.
 
 LoRA v1 was therefore allowed after this baseline, using synthetic behavior examples only and keeping the frozen golden set untouched.
+
+## Follow-Up Evidence
+
+LoRA v1 trained successfully but did not improve the 10-case structural pilot.
+The adapter is therefore rejected and not promoted.
+
+The next diagnostic used `llama.cpp 0.4.1` with
+`ggml-org/Qwen3-1.7B-GGUF` / `Qwen3-1.7B-Q4_K_M.gguf` and JSON Schema
+constrained decoding. On the same 10-case pilot, schema validity improved from
+`0.1` unconstrained to `1.0` constrained, and seven-day validity improved from
+`0.0` to `1.0`. The full constrained 50-case run reached schema validity `1.0`
+and seven-day validity `1.0`, but instruction-following remained `0.58`.
+
+See:
+
+```text
+docs/SMALL_LLM_LORA_V1.md
+ml/eval/reports/llama_cpp_constrained_decoding.md
+ml/training/reports/lora_v1_failure_analysis.md
+```

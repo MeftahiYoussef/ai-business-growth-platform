@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,6 +75,31 @@ CONTENT_PLAN_SCHEMA: dict[str, Any] = {
     },
     "required": ["summary", "primary_goal", "target_audience", "items"],
 }
+
+
+def content_plan_serving_schema(*, ordered_days: bool = False) -> dict[str, Any]:
+    """Return a JSON Schema derived from the production contract for local serving.
+
+    The production validator remains authoritative. The ordered variant is an
+    inference-time constraint for runtimes that can enforce JSON Schema.
+    """
+    schema = deepcopy(CONTENT_PLAN_SCHEMA)
+    if not ordered_days:
+        return schema
+
+    item_schema = schema["properties"]["items"].pop("items")
+    schema["properties"]["items"]["prefixItems"] = [
+        {
+            **deepcopy(item_schema),
+            "properties": {
+                **deepcopy(item_schema["properties"]),
+                "day_number": {"type": "integer", "const": day_number},
+            },
+        }
+        for day_number in range(1, CONTENT_PLAN_ITEM_COUNT + 1)
+    ]
+    schema["properties"]["items"]["items"] = False
+    return schema
 
 CONTENT_PLAN_TOP_LEVEL_FIELDS = set(CONTENT_PLAN_SCHEMA["required"])
 CONTENT_PLAN_ITEM_REQUIRED_FIELDS = set(CONTENT_PLAN_SCHEMA["properties"]["items"]["items"]["required"])

@@ -1,0 +1,25 @@
+[
+  {
+    "name": "mlx-lm-qwen3-1.7b",
+    "provider": "local",
+    "runtime": "mlx-lm",
+    "base_model": "Qwen/Qwen3-1.7B",
+    "runtime_checkpoint": "Qwen/Qwen3-1.7B-MLX-4bit",
+    "supports_json_object": true,
+    "supports_json_schema": true,
+    "enforces_json_schema": false,
+    "notes": "mlx-lm 0.31.3 accepted response_format payloads but did not enforce adversarial JSON Schema constraints."
+  },
+  {
+    "name": "llama-cpp-qwen3-1.7b-q4-k-m",
+    "provider": "local",
+    "runtime": "llama.cpp",
+    "base_model": "Qwen/Qwen3-1.7B",
+    "runtime_checkpoint": "ggml-org/Qwen3-1.7B-GGUF/Qwen3-1.7B-Q4_K_M.gguf",
+    "quantization": "Q4_K_M",
+    "supports_json_object": true,
+    "supports_json_schema": true,
+    "enforces_json_schema": true,
+    "notes": "llama.cpp 0.4.1 passed the adversarial const/additionalProperties enforcement test on 2026-09-22."
+  }
+]

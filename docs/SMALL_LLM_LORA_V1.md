@@ -120,3 +120,29 @@ Recommended next step: fix the SFT curriculum and prompt contract before another
 - safety responses that still include required facts without forbidden claims
 
 Do not benchmark Qwen3-4B yet. The current failure mode remains mostly curriculum/prompt/serving-constraint related, not proven model-capacity failure.
+
+## Constrained-Decoding Follow-Up
+
+The next experiment used base `Qwen/Qwen3-1.7B` through `llama.cpp` with
+`Qwen3-1.7B-Q4_K_M.gguf` and enforced JSON Schema. It did not load or evaluate
+the LoRA v1 adapter.
+
+That experiment showed:
+
+- 10-case schema validity: `0.1` unconstrained -> `1.0` constrained
+- 10-case seven-day validity: `0.0` unconstrained -> `1.0` constrained
+- 10-case hallucination rate remained `0.0`
+- full 50-case constrained schema validity: `1.0`
+- full 50-case constrained instruction-following rate: `0.58`
+
+This confirms that LoRA v1 tried to solve a structural problem better handled
+by constrained decoding. LoRA v2 should not be trained until the SFT curriculum
+is redesigned around semantic fidelity, safety refusal behavior, multilingual
+instruction following, and required-fact coverage.
+
+Detailed follow-up reports:
+
+```text
+ml/eval/reports/llama_cpp_constrained_decoding.md
+ml/training/reports/lora_v1_failure_analysis.md
+```

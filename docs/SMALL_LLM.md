@@ -138,11 +138,16 @@ and deterministic post-validation. Qwen3-1.7B completed the full 50-case frozen
 baseline, then LoRA v1 trained locally on synthetic behavior examples.
 
 The LoRA v1 pilot did not improve the product-critical structural metrics, so
-the full LoRA frozen evaluation was intentionally not run. Current reports:
+the full LoRA frozen evaluation was intentionally not run. A follow-up
+llama.cpp constrained decoding diagnostic showed that JSON Schema enforcement
+solves the structural content-plan failures that LoRA v1 did not solve.
+Current reports:
 
 ```text
 docs/SMALL_LLM_BASELINE_V2.md
 docs/SMALL_LLM_LORA_V1.md
+ml/eval/reports/llama_cpp_constrained_decoding.md
+ml/training/reports/lora_v1_failure_analysis.md
 ```
 
 ## Metrics
@@ -161,15 +166,17 @@ The deterministic evaluator measures:
 For JSON tasks, use deterministic checks first. An LLM judge may be added later
 only as a secondary signal.
 
-## Fine-Tuning Preparation
+## Fine-Tuning Status
 
-No fine-tuning has been run.
+LoRA v1 has been run locally for evidence gathering only. It is not promoted,
+not deployed, and not a production model path.
 
-Future first experiment:
+Next possible experiment:
 
 - model: `Qwen/Qwen3-1.7B`
-- method: LoRA
-- target: instruction following and project structured outputs
+- method: LoRA v2
+- target: semantic fidelity, refusal behavior, multilingual instruction following
+- structural guardrail: JSON Schema constrained decoding plus production validation
 - non-goal: memorizing business data
 
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
