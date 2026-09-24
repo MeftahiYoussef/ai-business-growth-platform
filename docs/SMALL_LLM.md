@@ -146,12 +146,14 @@ Current reports:
 ```text
 docs/SMALL_LLM_BASELINE_V2.md
 docs/SMALL_LLM_LORA_V1.md
+docs/SMALL_LLM_LORA_V2.md
 docs/SMALL_LLM_SEMANTIC_ALIGNMENT.md
 ml/eval/reports/llama_cpp_constrained_decoding.md
 ml/eval/reports/semantic_evaluator_audit.md
 ml/eval/reports/semantic_safety_forensics.md
 ml/eval/reports/semantic_failure_clusters.md
 ml/training/reports/lora_v1_failure_analysis.md
+ml/training/reports/lora_v2_training.md
 ml/training/reports/sft_v2_quality_audit.md
 ```
 
@@ -182,10 +184,13 @@ only as a secondary signal.
 LoRA v1 has been run locally for evidence gathering only. It is not promoted,
 not deployed, and not a production model path.
 
-Next possible experiment:
+LoRA v2 has been run locally for evidence gathering only. It is rejected, not
+promoted, not deployed, and not a production model path.
+
+LoRA v2 used:
 
 - model: `Qwen/Qwen3-1.7B`
-- method: LoRA v2, not yet trained
+- method: LoRA v2
 - target: semantic fidelity, refusal behavior, multilingual instruction following
 - structural guardrail: JSON Schema constrained decoding plus production validation
 - non-goal: memorizing business data
@@ -195,7 +200,12 @@ synthetic/non-private examples, 324 train records, and 36 validation records.
 It targets hallucination resistance, required-fact retention, numeric
 preservation, insufficient-evidence behavior, report interpretation, trend
 metric fidelity, competitor fact fidelity, recommendation-vs-fact separation,
-and difficult French/Russian cases. LoRA v2 has not been trained.
+and difficult French/Russian cases.
+
+The LoRA v2 pilot reduced some hallucination/forbidden-claim failures, but it
+materially regressed required-fact recall, critical-fact recall, French behavior,
+and latency. The full 50-case LoRA v2 benchmark was intentionally not run after
+the pilot stop gate failed.
 
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
 deterministic train/validation/test splits. It rejects obvious secrets,
