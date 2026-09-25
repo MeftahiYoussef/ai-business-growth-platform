@@ -79,18 +79,74 @@ Do not integrate this adapter with constrained serving.
 Do not deploy it.
 Do not use it as a base for production behavior.
 
+## Failure Forensics
+
+Follow-up output forensics confirmed that LoRA v2 improved caution at the
+expense of supplied-fact retention:
+
+- Paired pilot outputs analyzed: `10`
+- Required-fact failures in LoRA output:
+  `FACT_DROPPED=9`, `FACT_MUTATED=2`,
+  `FACT_REPLACED_WITH_RECOMMENDATION=9`
+- Critical-fact failures in LoRA output:
+  `FACT_DROPPED=5`, `FACT_MUTATED=2`,
+  `FACT_REPLACED_WITH_RECOMMENDATION=8`
+- Correct uncertainty improved from `0.4` to `0.6`, but selective uncertainty
+  remained `0.0`.
+- Known-fact retention under uncertainty regressed from `0.5` to `0.25`.
+- Long digit-run cases increased from `0` to `3`.
+- Median latency increased from `4896.5 ms` to `31267.0 ms`.
+
+The latency regression is not treated as normal adapter overhead. Several LoRA
+outputs show generation degeneration, including long numeric runs and repeated
+fragments that likely ran to the token budget.
+
+The SFT v2 dataset was lexically unique but semantically repetitive:
+
+- Every accepted SFT v2 record included uncertainty language.
+- `60%` of records included refusal-style language.
+- The three localized fact/limitation/recommendation label skeletons covered
+  the entire dataset.
+
+This supports the conclusion that the adapter learned a broad caution template
+instead of the desired policy:
+
+1. preserve known facts,
+2. qualify only missing facts,
+3. remain helpful with concise recommendations.
+
+## V2.1 Candidate Curriculum
+
+`qwen3_sft_v2_1` has been prepared for review only. LoRA v2.1 has not been
+trained.
+
+- Candidate examples: `192`
+- Accepted examples: `180`
+- Rejected controls: `12`
+- Train / validation: `162 / 18`
+- EN / FR / RU: `72 / 54 / 54`
+- Exact duplicates: `0`
+- Near duplicates: `0`
+- Golden leakage: `0`
+- Max response-template share: `0.0444`
+
+Frozen hashes:
+
+- Accepted:
+  `0a728f77941461be653c5f10f2acf3b9e3175d4d6ce8d70ae1a5b042ab94870e`
+- Train:
+  `f345b44453ab39f918df26be8def4e65ece07a9528bac1114a2dc688f68b1843`
+- Validation:
+  `4fbdb0101fb7de7fe6ddc6d6a6e28839c0f9ba3d0d7e50884f969063b70f8fc3`
+
+The v2.1 curriculum targets selective uncertainty and known-fact retention under
+missing data. It intentionally remains smaller than v2 and does not teach JSON
+formatting.
+
 ## Next Research Direction
 
-The next phase should not train another adapter immediately.
-
-Recommended next work:
-
-1. Inspect LoRA v2 outputs for over-uncertainty and phrase memorization.
-2. Build a smaller adversarial validation set specifically for fact retention
-   versus safe uncertainty.
-3. Revise the semantic SFT curriculum to reward retaining supplied facts while
-   still refusing unsupported claims.
-4. Only then consider `LoRA v2.1`.
+The next phase may train exactly one `LoRA v2.1` adapter only after reviewing
+the candidate curriculum and confirming the group-aware split is acceptable.
 
 Qwen3-4B is not yet justified. RAG is not yet justified for this failure mode;
 the current regression is behavioral, not missing dynamic knowledge.

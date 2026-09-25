@@ -1,0 +1,60 @@
+# Prepared only. Do not train until qwen3_sft_v2_1 is generated,
+# audited, split group-aware, frozen, and approved.
+model: Qwen/Qwen3-1.7B
+training_checkpoint: Qwen/Qwen3-1.7B-MLX-4bit
+fine_tune_type: lora
+data: ml/datasets/qwen3_sft_v2_1/splits
+adapter_path: ml/outputs/adapters/qwen3_1_7b_lora_v2_1
+
+# Keep comparable to v2 for the first dataset-only test.
+lora_parameters:
+  rank: 8
+  dropout: 0.0
+  scale: 16.0
+
+optimizer: adamw
+batch_size: 1
+grad_accumulation_steps: 8
+learning_rate: 0.00005
+max_seq_length: 4096
+iters: 240
+val_batches: -1
+steps_per_report: 10
+steps_per_eval: 40
+save_every: 120
+num_layers: 16
+mask_prompt: true
+grad_checkpoint: true
+seed: 20260922
+
+goal: semantic_alignment_selective_uncertainty
+not_goal:
+  - JSON syntax learning
+  - field order learning
+  - enum formatting
+  - seven-day structure
+  - business fact memorization
+  - trend fact memorization
+
+future_command: >-
+  python -m mlx_lm lora --train --model Qwen/Qwen3-1.7B-MLX-4bit
+  --data ml/datasets/qwen3_sft_v2_1/splits --fine-tune-type lora
+  --adapter-path ml/outputs/adapters/qwen3_1_7b_lora_v2_1 --batch-size 1
+  --iters 240 --val-batches -1 --learning-rate 0.00005
+  --steps-per-report 10 --steps-per-eval 40 --grad-accumulation-steps 8
+  --save-every 120 --max-seq-length 4096 --num-layers 16 --mask-prompt
+  --grad-checkpoint --seed 20260922
+
+acceptance_gates:
+  schema_validity: 1.0
+  seven_day_validity: 1.0
+  human_review_validity: 1.0
+  critical_numeric_mutations: 0
+  hallucination_failure_max: 0.02
+  instruction_following_min: 0.8
+  required_fact_recall_min: 0.9
+  critical_required_fact_recall_min: 0.95
+  numeric_preservation_min: 0.98
+  language_match_min: 0.95
+  insufficient_evidence_handling_min: 0.9
+  known_fact_retention_under_uncertainty: 1.0
