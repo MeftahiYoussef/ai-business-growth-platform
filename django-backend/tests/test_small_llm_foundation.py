@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
-from ml.datasets import generate_sft_v2  # noqa: E402
+from ml.datasets import generate_sft_v2, generate_sft_v2_1  # noqa: E402
 from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
@@ -481,6 +481,59 @@ def test_sft_v2_validation_rejects_bad_examples():
     assert generate_sft_v2._validate_candidate(secret, seen_hashes).accepted is False
     assert generate_sft_v2._validate_candidate(invented, seen_hashes).rejection_reason == "invented_unavailable_metric"
     assert generate_sft_v2._validate_candidate(mutated, seen_hashes).rejection_reason == "numeric_mutation"
+
+
+def test_sft_v2_1_generator_quality_gates():
+    candidates = generate_sft_v2_1.generate_candidates()
+    seen_hashes: set[str] = set()
+    accepted = []
+    rejected = []
+    for candidate in candidates:
+        result = generate_sft_v2_1._validate_candidate(candidate, seen_hashes)
+        if result.accepted:
+            accepted.append(result.record)
+        else:
+            rejected.append(result)
+    train, validation = generate_sft_v2_1._split_records(accepted)
+
+    assert len(candidates) == 192
+    assert len(accepted) == 180
+    assert len(rejected) == 12
+    assert len(train) == 162
+    assert len(validation) == 18
+    assert generate_sft_v2_1._leakage_findings(accepted) == []
+    assert generate_sft_v2_1._near_duplicate_pairs(accepted) == []
+    assert generate_sft_v2_1._distribution(accepted, "language") == {"en": 72, "fr": 54, "ru": 54}
+    assert generate_sft_v2_1._distribution(accepted, "difficulty") == {"easy": 36, "hard": 54, "medium": 90}
+    assert all(record["known_missing_ratio"] >= 3 for record in accepted)
+
+
+def test_sft_v2_1_group_split_keeps_family_template_groups_isolated():
+    candidates = generate_sft_v2_1.generate_candidates()
+    seen_hashes: set[str] = set()
+    accepted = [
+        result.record
+        for candidate in candidates
+        if (result := generate_sft_v2_1._validate_candidate(candidate, seen_hashes)).accepted
+    ]
+    train, validation = generate_sft_v2_1._split_records(accepted)
+    train_groups = {(record["family_id"], record["response_template_family"]) for record in train}
+    validation_groups = {(record["family_id"], record["response_template_family"]) for record in validation}
+    assert train_groups.isdisjoint(validation_groups)
+
+
+def test_sft_v2_1_rejects_bad_examples():
+    candidates = generate_sft_v2_1.generate_candidates()
+    rejected_controls = [candidate for candidate in candidates if candidate["id"].startswith("qwen3-sft-v2-1-reject")]
+    seen_hashes: set[str] = set()
+    reasons = {
+        generate_sft_v2_1._validate_candidate(candidate, seen_hashes).rejection_reason
+        for candidate in rejected_controls
+    }
+    assert "Assistant answer cannot be empty" in reasons
+    assert "language_validation_failed" in reasons
+    assert "numeric_mutation" in reasons
+    assert "invented_unavailable_metric" in reasons
 
 
 def test_model_registry_contains_qwen_baseline():

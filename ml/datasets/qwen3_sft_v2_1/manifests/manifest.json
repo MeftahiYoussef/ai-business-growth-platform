@@ -1,0 +1,53 @@
+{
+  "accepted_count": 180,
+  "behavior_distribution": {
+    "adversarial_fabrication": 18,
+    "adversarial_fabrication_resistance": 27,
+    "competitor_fidelity": 9,
+    "critical_fact_retention": 180,
+    "multilingual_semantic_fidelity": 108,
+    "multilingual_semantics": 18,
+    "numeric_preservation": 180,
+    "report_interpretation": 9,
+    "required_fact_retention": 180,
+    "selective_uncertainty": 180,
+    "trend_fidelity": 9
+  },
+  "candidate_count": 192,
+  "content_hashes": {
+    "accepted": "0a728f77941461be653c5f10f2acf3b9e3175d4d6ce8d70ae1a5b042ab94870e",
+    "train": "f345b44453ab39f918df26be8def4e65ece07a9528bac1114a2dc688f68b1843",
+    "validation": "4fbdb0101fb7de7fe6ddc6d6a6e28839c0f9ba3d0d7e50884f969063b70f8fc3"
+  },
+  "created_at": "2026-09-25T00:00:00Z",
+  "dataset_version": "qwen3_sft_v2_1",
+  "difficulty_distribution": {
+    "easy": 36,
+    "hard": 54,
+    "medium": 90
+  },
+  "language_distribution": {
+    "en": 72,
+    "fr": 54,
+    "ru": 54
+  },
+  "quality_gates": {
+    "exact_duplicates": 0,
+    "golden_leakage": 0,
+    "known_fact_retention_under_uncertainty_targets": 1.0,
+    "near_duplicates": 0,
+    "unsupported_numeric_claims": 0
+  },
+  "rejected_count": 12,
+  "split_algorithm": "group-aware by family_id and response_template_family",
+  "split_seed": 20260925,
+  "task_distribution": {
+    "business_report": 9,
+    "competitor_analysis": 9,
+    "safety": 63,
+    "strategy": 54,
+    "trend_intelligence": 45
+  },
+  "train_count": 162,
+  "validation_count": 18
+}
