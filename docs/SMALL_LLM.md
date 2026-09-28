@@ -155,6 +155,8 @@ ml/eval/reports/semantic_failure_clusters.md
 ml/training/reports/lora_v1_failure_analysis.md
 ml/training/reports/lora_v2_training.md
 ml/training/reports/sft_v2_quality_audit.md
+docs/SMALL_LLM_QWEN3_4B.md
+ml/eval/reports/qwen3_4b_capacity_benchmark.md
 ```
 
 ## Metrics
@@ -206,6 +208,17 @@ The LoRA v2 pilot reduced some hallucination/forbidden-claim failures, but it
 materially regressed required-fact recall, critical-fact recall, French behavior,
 and latency. The full 50-case LoRA v2 benchmark was intentionally not run after
 the pilot stop gate failed.
+
+LoRA v2.1 trained locally on the smaller `qwen3_sft_v2_1` curriculum. It
+removed the v2 digit-run/repetition degeneration and improved numeric
+preservation, but it still regressed required-fact recall, critical-fact recall,
+hallucination, and language match versus base. It is rejected and not promoted.
+
+Qwen3-4B was then checked as a capacity candidate through llama.cpp
+`Q4_K_M`. It loaded locally and passed JSON Schema enforcement, but failed
+direct semantic sanity before the 10-case pilot by inferring unavailable reach
+improvement and changing a supplied `22%` momentum value to `45%` under user
+pressure. It is not promoted as the new local baseline.
 
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
 deterministic train/validation/test splits. It rejects obvious secrets,
