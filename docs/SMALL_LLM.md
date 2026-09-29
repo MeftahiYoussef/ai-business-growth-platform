@@ -220,6 +220,17 @@ direct semantic sanity before the 10-case pilot by inferring unavailable reach
 improvement and changing a supplied `22%` momentum value to `45%` under user
 pressure. It is not promoted as the new local baseline.
 
+The next semantic-serving design is the claim ledger:
+
+```text
+docs/SMALL_LLM_CLAIM_LEDGER.md
+```
+
+Instead of asking the model to move directly from evidence to prose, this layer
+asks for evidence-bound `FACT`, `LIMITATION`, and `RECOMMENDATION` claims. A
+deterministic validator checks evidence IDs and immutable numbers before any
+user-facing prose is rendered.
+
 The dataset builder accepts explicitly supplied JSONL chat examples and creates
 deterministic train/validation/test splits. It rejects obvious secrets,
 duplicate examples, and empty assistant answers.
