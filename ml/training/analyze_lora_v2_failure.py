@@ -6,6 +6,7 @@ import re
 import statistics
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -249,7 +250,7 @@ def _target_text_distribution(records: list[dict[str, Any]], key: str) -> dict[s
     return dict(sorted(totals.items()))
 
 
-def _summarize_numbers(values: list[float | int]) -> dict[str, float | int | None]:
+def _summarize_numbers(values: Sequence[float | int]) -> dict[str, float | int | None]:
     if not values:
         return {"count": 0, "average": None, "median": None, "max": None}
     return {
@@ -279,7 +280,7 @@ def _pilot_forensics() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     over_uncertainty_counts = {"base": 0, "lora": 0}
     selective_uncertainty_counts = {"base": 0, "lora": 0}
     partial_answer_counts = {"base": 0, "lora": 0}
-    known_fact_recall_under_uncertainty = {"base": [], "lora": []}
+    known_fact_recall_under_uncertainty: dict[str, list[float]] = {"base": [], "lora": []}
     correct_uncertainty_counts = {"base": 0, "lora": 0}
     required_uncertainty_total = 0
     language_mixing_counts: Counter[str] = Counter()
@@ -453,7 +454,7 @@ def _dataset_forensics() -> dict[str, Any]:
 
     uncertainty_records = sum(1 for record in accepted if _phrase_count(_assistant(record), UNCERTAINTY_PATTERNS) > 0)
     refusal_records = sum(1 for record in accepted if _phrase_count(_assistant(record), REFUSAL_PATTERNS) > 0)
-    phrase_counts = Counter()
+    phrase_counts: Counter[str] = Counter()
     for record in accepted:
         assistant = _assistant(record)
         for phrase in UNCERTAINTY_PATTERNS:
@@ -480,7 +481,7 @@ def _dataset_forensics() -> dict[str, Any]:
     numeric_counts = [len(record.get("numeric_facts") or []) for record in accepted]
     critical_counts = [len(record.get("critical_fact_ids") or []) for record in accepted]
 
-    target_quality_flags = Counter()
+    target_quality_flags: Counter[str] = Counter()
     for record in accepted:
         assistant = _assistant(record)
         if _phrase_count(assistant, UNCERTAINTY_PATTERNS) > 0 and len(record.get("critical_fact_ids") or []) < 3:
