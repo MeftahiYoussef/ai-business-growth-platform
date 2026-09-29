@@ -248,13 +248,13 @@ def test_claim_ledger_validates_evidence_bound_semantic_output():
     )
     payload = {
         "claims": [
-            {"claim_type": "FACT", "text": "Published posts were 4.", "evidence": ["F1"]},
-            {"claim_type": "FACT", "text": "Momentum was 22%.", "evidence": ["F2"]},
-            {"claim_type": "LIMITATION", "text": "Reach is unavailable.", "evidence": ["U1"]},
+            {"claim_type": "fact", "text": "Published posts were 4.", "evidence_ids": ["F1"]},
+            {"claim_type": "fact", "text": "Momentum was 22%.", "evidence_ids": ["F2"]},
+            {"claim_type": "limitation", "text": "Reach is unavailable.", "evidence_ids": ["U1"]},
             {
-                "claim_type": "RECOMMENDATION",
+                "claim_type": "recommendation",
                 "text": "Use the 4 published posts and 22% momentum to guide the next content review.",
-                "evidence": ["F1", "F2"],
+                "evidence_ids": ["F1", "F2"],
             },
         ]
     }
@@ -276,15 +276,15 @@ def test_claim_ledger_rejects_unavailable_fact_and_numeric_mutation():
     )
     payload = {
         "claims": [
-            {"claim_type": "FACT", "text": "Reach improved.", "evidence": ["U1"]},
-            {"claim_type": "FACT", "text": "Momentum was 45%.", "evidence": ["F2"]},
+            {"claim_type": "fact", "text": "Reach improved.", "evidence_ids": ["U1"]},
+            {"claim_type": "fact", "text": "Momentum was 45%.", "evidence_ids": ["F2"]},
         ]
     }
 
     result = validate_claim_ledger_payload(payload, ledger)
 
     assert result.valid is False
-    assert any("FACT cites unavailable evidence" in error for error in result.errors)
+    assert any("fact cites unavailable evidence" in error for error in result.errors)
     assert any("does not preserve immutable number" in error for error in result.errors)
     assert any("unsupported numeric value" in error for error in result.errors)
     with pytest.raises(ValueError):
@@ -297,11 +297,100 @@ def test_claim_ledger_response_format_is_constrained_to_known_evidence_ids():
     prompt = claim_ledger_prompt(ledger)
 
     schema = response_format["json_schema"]["schema"]
-    evidence_schema = schema["properties"]["claims"]["items"]["properties"]["evidence"]["items"]
+    evidence_schema = schema["properties"]["claims"]["items"]["properties"]["evidence_ids"]["items"]
     assert response_format["type"] == "json_schema"
     assert schema["additionalProperties"] is False
     assert evidence_schema["enum"] == ["F1", "U1"]
-    assert "FACT claims may cite only known facts" in prompt
+    assert "fact claims may cite only known facts" in prompt
+
+
+def test_claim_ledger_extended_semantic_failure_matrix():
+    ledger = build_evidence_ledger(
+        facts={"F1": 4, "F2": 0.22, "F3": -0.08, "F4": "fading"},
+        unavailable={"U1": "reach", "U2": "engagement"},
+        immutable_numbers={"F2": 0.22, "F3": -0.08},
+    )
+    valid_payload = {
+        "claims": [
+            {"claim_type": "fact", "text": "Published posts were 4.", "evidence_ids": ["F1"]},
+            {"claim_type": "fact", "text": "Momentum was +22%.", "evidence_ids": ["F2"]},
+            {"claim_type": "fact", "text": "Trend momentum was -8%.", "evidence_ids": ["F3"]},
+            {"claim_type": "fact", "text": "The trend lifecycle was fading.", "evidence_ids": ["F4"]},
+            {"claim_type": "limitation", "text": "Reach is unavailable.", "evidence_ids": ["U1"]},
+            {"claim_type": "recommendation", "text": "Use the 4 published posts and 22% momentum to plan the next review.", "evidence_ids": ["F1", "F2"]},
+        ]
+    }
+    assert validate_claim_ledger_payload(
+        valid_payload,
+        ledger,
+        required_evidence_ids=["F1", "F2", "U1"],
+        critical_evidence_ids=["F2"],
+    ).valid
+
+    invalid_cases = {
+        "invented evidence id": {
+            "claims": [{"claim_type": "fact", "text": "Published posts were 4.", "evidence_ids": ["F99"]}]
+        },
+        "limitation cites known evidence only": {
+            "claims": [{"claim_type": "limitation", "text": "Published posts are limited.", "evidence_ids": ["F1"]}]
+        },
+        "unsupported numeric value": {
+            "claims": [{"claim_type": "fact", "text": "Momentum was 23%.", "evidence_ids": ["F2"]}]
+        },
+        "conflicting categorical fact": {
+            "claims": [{"claim_type": "fact", "text": "The trend lifecycle was emerging.", "evidence_ids": ["F4"]}]
+        },
+        "duplicate contradictory claims": {
+            "claims": [
+                {"claim_type": "fact", "text": "The trend lifecycle was fading.", "evidence_ids": ["F4"]},
+                {"claim_type": "fact", "text": "The trend lifecycle was emerging.", "evidence_ids": ["F4"]},
+            ]
+        },
+        "recommendation phrased as observation": {
+            "claims": [{"claim_type": "recommendation", "text": "Published posts were strong.", "evidence_ids": ["F1"]}]
+        },
+        "required fact omitted": {
+            "claims": [{"claim_type": "limitation", "text": "Reach is unavailable.", "evidence_ids": ["U1"]}]
+        },
+        "empty evidence ids": {
+            "claims": [{"claim_type": "fact", "text": "Published posts were 4.", "evidence_ids": []}]
+        },
+        "unavailable metric asserted through known citation": {
+            "claims": [{"claim_type": "fact", "text": "Reach improved after 4 posts.", "evidence_ids": ["F1"]}]
+        },
+    }
+    for label, payload in invalid_cases.items():
+        result = validate_claim_ledger_payload(
+            payload,
+            ledger,
+            required_evidence_ids=["F1", "F2"] if label == "required fact omitted" else [],
+        )
+        assert result.valid is False, label
+
+
+def test_claim_ledger_multilingual_claim_metadata_remains_canonical():
+    ledger = build_evidence_ledger(
+        facts={"F1": 4, "F2": 0.22},
+        unavailable={"U1": "reach"},
+        immutable_numbers={"F2": 0.22},
+    )
+    french_payload = {
+        "claims": [
+            {"claim_type": "fact", "text": "Quatre publications ont été publiées.", "evidence_ids": ["F1"]},
+            {"claim_type": "fact", "text": "Le momentum est de 22%.", "evidence_ids": ["F2"]},
+            {"claim_type": "limitation", "text": "La portée est indisponible.", "evidence_ids": ["U1"]},
+        ]
+    }
+    russian_payload = {
+        "claims": [
+            {"claim_type": "fact", "text": "Опубликовано 4 публикации.", "evidence_ids": ["F1"]},
+            {"claim_type": "fact", "text": "Momentum составляет 22%.", "evidence_ids": ["F2"]},
+            {"claim_type": "limitation", "text": "Данные о reach недоступны.", "evidence_ids": ["U1"]},
+        ]
+    }
+
+    assert validate_claim_ledger_payload(french_payload, ledger).valid is True
+    assert validate_claim_ledger_payload(russian_payload, ledger).valid is True
 
 
 def test_deterministic_content_plan_grading():
