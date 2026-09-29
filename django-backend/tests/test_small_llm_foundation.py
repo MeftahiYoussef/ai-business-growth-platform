@@ -17,6 +17,13 @@ if str(ROOT) not in sys.path:
 
 from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
 from ml.datasets import generate_sft_v2, generate_sft_v2_1  # noqa: E402
+from ml.eval.claim_ledger import (  # noqa: E402
+    build_evidence_ledger,
+    claim_ledger_prompt,
+    claim_ledger_response_format,
+    render_claim_ledger,
+    validate_claim_ledger_payload,
+)
 from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
 from ml.eval.metrics import score_case, summarize  # noqa: E402
 from ml.eval.runner import load_cases, main as eval_runner_main  # noqa: E402
@@ -231,6 +238,70 @@ def test_content_plan_evaluator_rejects_extra_top_level_text():
     assert score.schema_valid is False
     assert score.seven_day_plan_valid is False
     assert score.failure_category == "SCHEMA_FAILURE"
+
+
+def test_claim_ledger_validates_evidence_bound_semantic_output():
+    ledger = build_evidence_ledger(
+        facts={"F1": 4, "F2": 0.22},
+        unavailable={"U1": "reach"},
+        immutable_numbers={"F2": 0.22},
+    )
+    payload = {
+        "claims": [
+            {"claim_type": "FACT", "text": "Published posts were 4.", "evidence": ["F1"]},
+            {"claim_type": "FACT", "text": "Momentum was 22%.", "evidence": ["F2"]},
+            {"claim_type": "LIMITATION", "text": "Reach is unavailable.", "evidence": ["U1"]},
+            {
+                "claim_type": "RECOMMENDATION",
+                "text": "Use the 4 published posts and 22% momentum to guide the next content review.",
+                "evidence": ["F1", "F2"],
+            },
+        ]
+    }
+
+    result = validate_claim_ledger_payload(payload, ledger)
+
+    assert result.valid is True
+    assert result.errors == []
+    rendered = render_claim_ledger(payload, ledger)
+    assert "Published posts were 4." in rendered
+    assert "Reach is unavailable." in rendered
+
+
+def test_claim_ledger_rejects_unavailable_fact_and_numeric_mutation():
+    ledger = build_evidence_ledger(
+        facts={"F1": 4, "F2": 0.22},
+        unavailable={"U1": "reach"},
+        immutable_numbers={"F2": 0.22},
+    )
+    payload = {
+        "claims": [
+            {"claim_type": "FACT", "text": "Reach improved.", "evidence": ["U1"]},
+            {"claim_type": "FACT", "text": "Momentum was 45%.", "evidence": ["F2"]},
+        ]
+    }
+
+    result = validate_claim_ledger_payload(payload, ledger)
+
+    assert result.valid is False
+    assert any("FACT cites unavailable evidence" in error for error in result.errors)
+    assert any("does not preserve immutable number" in error for error in result.errors)
+    assert any("unsupported numeric value" in error for error in result.errors)
+    with pytest.raises(ValueError):
+        render_claim_ledger(payload, ledger)
+
+
+def test_claim_ledger_response_format_is_constrained_to_known_evidence_ids():
+    ledger = build_evidence_ledger(facts={"F1": 4}, unavailable={"U1": "reach"})
+    response_format = claim_ledger_response_format(ledger)
+    prompt = claim_ledger_prompt(ledger)
+
+    schema = response_format["json_schema"]["schema"]
+    evidence_schema = schema["properties"]["claims"]["items"]["properties"]["evidence"]["items"]
+    assert response_format["type"] == "json_schema"
+    assert schema["additionalProperties"] is False
+    assert evidence_schema["enum"] == ["F1", "U1"]
+    assert "FACT claims may cite only known facts" in prompt
 
 
 def test_deterministic_content_plan_grading():

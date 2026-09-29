@@ -19,7 +19,7 @@
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
 | Reports | Complete MVP + async foundation | Executive report generated from analytics summary. Asynchronous business-performance reports now have durable PostgreSQL jobs, status polling, idempotency, deterministic metrics, optional mocked AI recommendations, JSON/CSV exports, frontend support, and verified staging activation behind `ASYNC_REPORTS_ENABLED` / `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`. |
 | Notifications | Complete MVP | In-app notifications for workflow/report events. |
-| Small LLM model lab | Experimental local baseline + constrained decoding + semantic audit | `Qwen/Qwen3-1.7B` is the primary local baseline candidate. Local provider, corrected `golden_eval_v2` dataset, production-owned content-plan contract, deterministic metrics, dataset builder, LoRA config, and RAG design docs exist. Groq reference comparison completed; Qwen full 50-case baseline completed; LoRA v1 trained locally but did not improve structural behavior and is rejected. A local llama.cpp constrained-decoding diagnostic with `Qwen3-1.7B-Q4_K_M.gguf` fixed content-plan schema/seven-day validity. Semantic scoring v3 shows remaining gaps in required-fact recall, insufficient-evidence handling, numeric preservation, and hallucination resistance. LoRA v2 trained locally on `qwen3_sft_v2`, but the 10-case pilot regressed required-fact recall, critical-fact recall, French behavior, and latency, so it is rejected and not promoted. Follow-up forensics identified over-broad uncertainty training, repeated answer skeletons, and generation degeneration. LoRA v2.1 trained locally on the smaller `qwen3_sft_v2_1` dataset and removed v2 degeneration, but it still regressed required-fact recall and hallucination versus base, so it is rejected. Groq remains live default; RAG and staging activation have not run. |
+| Small LLM model lab | Experimental local baseline + constrained decoding + semantic audit | `Qwen/Qwen3-1.7B` remains the primary local baseline candidate. Local provider, corrected `golden_eval_v2` dataset, production-owned content-plan contract, deterministic metrics, dataset builder, LoRA config, and RAG design docs exist. Groq reference comparison completed; Qwen full 50-case baseline completed; LoRA v1 trained locally but did not improve structural behavior and is rejected. A local llama.cpp constrained-decoding diagnostic with `Qwen3-1.7B-Q4_K_M.gguf` fixed content-plan schema/seven-day validity. Semantic scoring v3 shows remaining gaps in required-fact recall, insufficient-evidence handling, numeric preservation, and hallucination resistance. LoRA v2 and v2.1 are both rejected. A Qwen3-4B Q4_K_M capacity check loaded locally and passed JSON Schema enforcement, but failed direct semantic sanity before the pilot by inferring unavailable reach improvement and mutating `22%` to `45%`, so 4B is not promoted. Groq remains live default; RAG and staging activation have not run. |
 | Billing | Backlog | Phase 2. |
 | Knowledge base | Backlog | Phase 3. |
 | Social inbox | Backlog | Phase 3. |
@@ -27,7 +27,7 @@
 ## Integrations
 
 - AI provider: Groq only. The model defaults to `openai/gpt-oss-20b` through Groq.
-- Experimental local model: `Qwen/Qwen3-1.7B` for local evaluation only.
+- Experimental local model: `Qwen/Qwen3-1.7B` for local evaluation only. `Qwen/Qwen3-4B` was capacity-checked and rejected before pilot.
 - Social provider: `sandbox`
 
 No sandbox output is presented as a real provider integration.
