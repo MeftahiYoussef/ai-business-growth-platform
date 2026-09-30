@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 from .claim_ledger import (
     EvidenceLedgerV2,
+    EvidenceRelationV2,
     EvidenceSourceV2,
     claim_ledger_v2_prompt,
     claim_ledger_v2_response_format,
@@ -85,7 +86,16 @@ def _cases() -> list[LedgerCaseV2]:
                     EvidenceSourceV2(id="F1", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count"),
                     EvidenceSourceV2(id="F2", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count"),
                     EvidenceSourceV2(id="U1", subject="content_performance", predicate="competitor_engagement", status="unavailable"),
-                )
+                ),
+                relations=(
+                    EvidenceRelationV2(
+                        id="R1",
+                        left_evidence_id="F1",
+                        operator="greater_than",
+                        right_evidence_id="F2",
+                        predicate="competitor_posts",
+                    ),
+                ),
             ),
             required_evidence_ids=("F1", "F2", "U1"),
             critical_evidence_ids=("U1",),
@@ -141,7 +151,16 @@ def _cases() -> list[LedgerCaseV2]:
                     EvidenceSourceV2(id="F1", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count"),
                     EvidenceSourceV2(id="F2", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count"),
                     EvidenceSourceV2(id="U1", subject="content_performance", predicate="competitor_engagement", status="unavailable"),
-                )
+                ),
+                relations=(
+                    EvidenceRelationV2(
+                        id="R1",
+                        left_evidence_id="F1",
+                        operator="greater_than",
+                        right_evidence_id="F2",
+                        predicate="competitor_posts",
+                    ),
+                ),
             ),
             required_evidence_ids=("F1", "F2", "U1"),
             critical_evidence_ids=("U1",),
@@ -230,6 +249,16 @@ def _user_payload(case: LedgerCaseV2) -> str:
                 "polarity": source.polarity,
             }
             for source in case.evidence_ledger.sources
+        ],
+        "relations": [
+            {
+                "id": relation.id,
+                "left_evidence_id": relation.left_evidence_id,
+                "operator": relation.operator,
+                "right_evidence_id": relation.right_evidence_id,
+                "predicate": relation.predicate,
+            }
+            for relation in case.evidence_ledger.relations
         ],
         "required_evidence_ids": list(case.required_evidence_ids),
         "critical_evidence_ids": list(case.critical_evidence_ids),

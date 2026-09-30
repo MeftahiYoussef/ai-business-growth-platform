@@ -68,9 +68,19 @@ Comparisons:
 
 ```json
 {
-  "left_evidence_id": "F4",
+  "relation_id": "R1"
+}
+```
+
+The relation ledger is trusted input:
+
+```json
+{
+  "id": "R1",
+  "left_evidence_id": "F1",
   "operator": "greater_than",
-  "right_evidence_id": "F5"
+  "right_evidence_id": "F2",
+  "predicate": "posts"
 }
 ```
 
@@ -110,6 +120,7 @@ Request-specific schema uses separate enums:
 - known IDs for `facts`
 - unavailable IDs for `limitations`
 - known IDs for comparison operands
+- relation IDs for comparisons when trusted relations are supplied
 - known IDs for recommendation rationale
 
 Schema-prevented invalidity classes:
@@ -272,7 +283,7 @@ retriever
 
 ## Recommended Next Phase
 
-Create `claim_ledger_v2.1` focused on comparison affordances:
+Run `claim_ledger_v2.1` focused on comparison affordances:
 
 - allow comparisons only when the trusted evidence ledger declares comparable
   pairs

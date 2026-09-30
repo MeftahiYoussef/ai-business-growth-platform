@@ -68,8 +68,18 @@ class EvidenceSourceV2:
 
 
 @dataclass(frozen=True)
+class EvidenceRelationV2:
+    id: str
+    left_evidence_id: str
+    operator: ClaimLedgerV2Operator
+    right_evidence_id: str
+    predicate: str
+
+
+@dataclass(frozen=True)
 class EvidenceLedgerV2:
     sources: tuple[EvidenceSourceV2, ...]
+    relations: tuple[EvidenceRelationV2, ...] = ()
 
     @property
     def by_id(self) -> dict[str, EvidenceSourceV2]:
@@ -86,6 +96,14 @@ class EvidenceLedgerV2:
     @property
     def unavailable_ids(self) -> set[str]:
         return {source.id for source in self.sources if source.status == "unavailable"}
+
+    @property
+    def relation_ids(self) -> set[str]:
+        return {relation.id for relation in self.relations}
+
+    @property
+    def relations_by_id(self) -> dict[str, EvidenceRelationV2]:
+        return {relation.id: relation for relation in self.relations}
 
 
 def build_evidence_ledger(
@@ -176,6 +194,7 @@ def claim_ledger_prompt(evidence_ledger: EvidenceLedger) -> str:
 def claim_ledger_v2_schema(evidence_ledger: EvidenceLedgerV2) -> dict[str, Any]:
     known_ids = sorted(evidence_ledger.known_ids)
     unavailable_ids = sorted(evidence_ledger.unavailable_ids)
+    relation_ids = sorted(evidence_ledger.relation_ids)
     unavailable_item_schema: dict[str, Any]
     if unavailable_ids:
         unavailable_item_schema = {
@@ -211,16 +230,7 @@ def claim_ledger_v2_schema(evidence_ledger: EvidenceLedgerV2) -> dict[str, Any]:
             },
             "comparisons": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "left_evidence_id": {"type": "string", "enum": known_ids},
-                        "operator": {"type": "string", "enum": list(CLAIM_LEDGER_V2_OPERATORS)},
-                        "right_evidence_id": {"type": "string", "enum": known_ids},
-                    },
-                    "required": ["left_evidence_id", "operator", "right_evidence_id"],
-                },
+                "items": _claim_ledger_v2_comparison_item_schema(known_ids, relation_ids),
             },
             "recommendations": {
                 "type": "array",
@@ -240,6 +250,32 @@ def claim_ledger_v2_schema(evidence_ledger: EvidenceLedgerV2) -> dict[str, Any]:
             },
         },
         "required": ["facts", "limitations", "comparisons", "recommendations"],
+    }
+
+
+def _claim_ledger_v2_comparison_item_schema(known_ids: list[str], relation_ids: list[str]) -> dict[str, Any]:
+    if relation_ids:
+        return {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "relation_id": {"type": "string", "enum": relation_ids},
+                    },
+                    "required": ["relation_id"],
+                },
+            ]
+        }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "left_evidence_id": {"type": "string", "enum": known_ids},
+            "operator": {"type": "string", "enum": list(CLAIM_LEDGER_V2_OPERATORS)},
+            "right_evidence_id": {"type": "string", "enum": known_ids},
+        },
+        "required": ["left_evidence_id", "operator", "right_evidence_id"],
     }
 
 
@@ -265,15 +301,21 @@ def claim_ledger_v2_prompt(evidence_ledger: EvidenceLedgerV2) -> str:
         for source in evidence_ledger.sources
         if source.status == "unavailable"
     )
+    relations = ", ".join(
+        f"{relation.id}: {relation.left_evidence_id} {relation.operator} {relation.right_evidence_id} for {relation.predicate}"
+        for relation in evidence_ledger.relations
+    )
     return (
         f"Return JSON only using {CLAIM_LEDGER_V2_CONTRACT_VERSION}. "
         "Do not write fact text. For factual observations, select evidence IDs in facts. "
         "For missing data, select unavailable evidence IDs in limitations. "
-        "For comparisons, select two known evidence IDs and a true operator. "
+        "For comparisons, select relation_id from the provided trusted relations when relations are listed; "
+        "do not invent comparisons. "
         "Use recommendations only when a helpful action is needed; cite known evidence IDs. "
         "Do not copy, rewrite, or invent numeric values. The renderer will write all factual prose. "
         f"Known evidence: {known or 'none'}. "
-        f"Unavailable evidence: {unavailable or 'none'}."
+        f"Unavailable evidence: {unavailable or 'none'}. "
+        f"Trusted relations: {relations or 'none'}."
     )
 
 
@@ -296,6 +338,7 @@ def validate_claim_ledger_v2_payload(
         errors.append(f"payload is missing top-level fields: {', '.join(missing_top_level)}")
 
     by_id = evidence_ledger.by_id
+    relations_by_id = evidence_ledger.relations_by_id
     cited_ids: set[str] = set()
     normalized: dict[str, list[dict[str, Any]]] = {
         "facts": [],
@@ -348,6 +391,24 @@ def validate_claim_ledger_v2_payload(
         path = f"comparisons[{index}]"
         if not isinstance(comparison, dict):
             errors.append(f"{path} must be an object")
+            continue
+        if sorted(set(comparison) - {"left_evidence_id", "operator", "right_evidence_id"}):
+            if sorted(set(comparison) - {"relation_id"}):
+                errors.append(f"{path} contains unsupported fields")
+        relation_id = comparison.get("relation_id")
+        if relation_id is not None:
+            if relation_id not in relations_by_id:
+                errors.append(f"{path}.relation_id must reference a trusted relation")
+                continue
+            relation = relations_by_id[str(relation_id)]
+            if not _relation_is_true(relation, evidence_ledger):
+                errors.append(f"{path}.relation_id references an invalid trusted relation")
+                continue
+            cited_ids.update((relation.left_evidence_id, relation.right_evidence_id))
+            normalized["comparisons"].append({"relation_id": relation_id})
+            continue
+        if evidence_ledger.relations:
+            errors.append(f"{path}.relation_id is required when trusted relations are supplied")
             continue
         if sorted(set(comparison) - {"left_evidence_id", "operator", "right_evidence_id"}):
             errors.append(f"{path} contains unsupported fields")
@@ -439,14 +500,25 @@ def render_claim_ledger_v2(
     for fact in result.normalized_payload["facts"]:
         sentences.append(_render_v2_fact(by_id[fact["evidence_id"]], language))
     for comparison in result.normalized_payload["comparisons"]:
-        sentences.append(
-            _render_v2_comparison(
-                by_id[comparison["left_evidence_id"]],
-                comparison["operator"],
-                by_id[comparison["right_evidence_id"]],
-                language,
+        if "relation_id" in comparison:
+            relation = evidence_ledger.relations_by_id[comparison["relation_id"]]
+            sentences.append(
+                _render_v2_comparison(
+                    by_id[relation.left_evidence_id],
+                    relation.operator,
+                    by_id[relation.right_evidence_id],
+                    language,
+                )
             )
-        )
+        else:
+            sentences.append(
+                _render_v2_comparison(
+                    by_id[comparison["left_evidence_id"]],
+                    comparison["operator"],
+                    by_id[comparison["right_evidence_id"]],
+                    language,
+                )
+            )
     for limitation in result.normalized_payload["limitations"]:
         sentences.append(_render_v2_limitation(by_id[limitation["evidence_id"]], language))
     for recommendation in result.normalized_payload["recommendations"]:
@@ -713,6 +785,17 @@ def _comparison_is_true(left: EvidenceSourceV2, operator: str, right: EvidenceSo
     if operator == "less_than":
         return float(left.value) < float(right.value)
     return False
+
+
+def _relation_is_true(relation: EvidenceRelationV2, evidence_ledger: EvidenceLedgerV2) -> bool:
+    by_id = evidence_ledger.by_id
+    left = by_id.get(relation.left_evidence_id)
+    right = by_id.get(relation.right_evidence_id)
+    if left is None or right is None:
+        return False
+    if relation.predicate != left.predicate or relation.predicate != right.predicate:
+        return False
+    return _comparison_is_true(left, relation.operator, right)
 
 
 def _is_number(value: object) -> bool:

@@ -63,13 +63,26 @@ For comparisons, the model may select a validated relation:
 
 ```json
 {
-  "left_evidence_id": "F4",
-  "operator": "greater_than",
-  "right_evidence_id": "F5"
+  "relation_id": "R1"
 }
 ```
 
-The validator checks that the relation is true and compares the same predicate.
+The relation itself is supplied by trusted code:
+
+```json
+{
+  "id": "R1",
+  "left_evidence_id": "F1",
+  "operator": "greater_than",
+  "right_evidence_id": "F2",
+  "predicate": "posts"
+}
+```
+
+The validator checks that the trusted relation is true and compares the same
+predicate. When trusted relations exist, the model cannot emit arbitrary
+`left_evidence_id/operator/right_evidence_id` triples; it must select an allowed
+`relation_id`.
 
 ## Schema Restrictions
 
@@ -78,6 +91,8 @@ The request-specific JSON Schema separates evidence classes:
 - `facts[].evidence_id` can only use known evidence IDs.
 - `limitations[].evidence_id` can only use unavailable evidence IDs.
 - comparisons can only use known evidence IDs.
+- when trusted relations are supplied, comparisons can only use `relation_id`
+  values from the relation ledger.
 - fact and limitation claims contain no model-authored factual text.
 
 Schema-prevented invalidity classes:
@@ -106,6 +121,7 @@ Deterministic code owns:
 - factual wording
 - numeric rendering
 - relation truth validation
+- relation affordance validation
 - localization templates
 
 ## Rendering
@@ -161,6 +177,6 @@ Claim ledger V2 is a stronger research direction than V1.
 Qwen3-4B is the better candidate for the next claim-ledger research phase.
 Qwen3-1.7B selects evidence correctly but over-produces invalid comparisons.
 
-Do not deploy this yet. The next contract iteration should make comparisons
-optional by task type or require explicit relation affordances from the trusted
-evidence ledger.
+Do not deploy this yet. The next validation run should test the relation
+affordance path live, especially competitor comparisons where the evidence
+ledger supplies `R1` and the model only selects that relation.

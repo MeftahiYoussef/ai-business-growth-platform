@@ -19,6 +19,7 @@ from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_ma
 from ml.datasets import generate_sft_v2, generate_sft_v2_1  # noqa: E402
 from ml.eval.claim_ledger import (  # noqa: E402
     EvidenceLedgerV2,
+    EvidenceRelationV2,
     EvidenceSourceV2,
     build_evidence_ledger,
     claim_ledger_prompt,
@@ -571,6 +572,110 @@ def test_claim_ledger_v2_localizes_facts_and_limitations():
     assert "Было опубликовано 4 публикации." in russian
     assert "Momentum составляет 22%." in russian
     assert "Данные по охвату недоступны." in russian
+
+
+def test_claim_ledger_v2_uses_trusted_relation_affordances():
+    ledger = EvidenceLedgerV2(
+        sources=(
+            EvidenceSourceV2(id="F1", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count"),
+            EvidenceSourceV2(id="F2", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count"),
+            EvidenceSourceV2(id="U1", subject="content_performance", predicate="engagement", status="unavailable"),
+        ),
+        relations=(
+            EvidenceRelationV2(
+                id="R1",
+                left_evidence_id="F1",
+                operator="greater_than",
+                right_evidence_id="F2",
+                predicate="competitor_posts",
+            ),
+        ),
+    )
+    payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [{"relation_id": "R1"}],
+        "recommendations": [],
+    }
+
+    schema = claim_ledger_v2_response_format(ledger)["json_schema"]["schema"]
+    comparison_schema = schema["properties"]["comparisons"]["items"]["oneOf"][0]
+    result = validate_claim_ledger_v2_payload(payload, ledger, required_evidence_ids=["F1", "F2", "U1"])
+    rendered = render_claim_ledger_v2(payload, ledger)
+
+    assert comparison_schema["properties"]["relation_id"]["enum"] == ["R1"]
+    assert "left_evidence_id" not in comparison_schema["properties"]
+    assert result.valid is True
+    assert "Competitor A is greater than Competitor B for posts: 8 versus 3." in rendered
+    assert "Engagement data is unavailable." in rendered
+
+
+def test_claim_ledger_v2_rejects_invented_or_expanded_relations_when_affordances_exist():
+    ledger = EvidenceLedgerV2(
+        sources=(
+            EvidenceSourceV2(id="F1", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count"),
+            EvidenceSourceV2(id="F2", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count"),
+            EvidenceSourceV2(id="U1", subject="content_performance", predicate="engagement", status="unavailable"),
+        ),
+        relations=(
+            EvidenceRelationV2(
+                id="R1",
+                left_evidence_id="F1",
+                operator="greater_than",
+                right_evidence_id="F2",
+                predicate="competitor_posts",
+            ),
+        ),
+    )
+    invented_relation = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [{"relation_id": "R99"}],
+        "recommendations": [],
+    }
+    expanded_relation = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [{"left_evidence_id": "F1", "operator": "greater_than", "right_evidence_id": "F2"}],
+        "recommendations": [],
+    }
+
+    invented = validate_claim_ledger_v2_payload(invented_relation, ledger)
+    expanded = validate_claim_ledger_v2_payload(expanded_relation, ledger)
+
+    assert invented.valid is False
+    assert any("relation_id must reference a trusted relation" in error for error in invented.errors)
+    assert expanded.valid is False
+    assert any("relation_id is required when trusted relations are supplied" in error for error in expanded.errors)
+
+
+def test_claim_ledger_v2_rejects_invalid_trusted_relation_definition():
+    ledger = EvidenceLedgerV2(
+        sources=(
+            EvidenceSourceV2(id="F1", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count"),
+            EvidenceSourceV2(id="F2", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count"),
+        ),
+        relations=(
+            EvidenceRelationV2(
+                id="R1",
+                left_evidence_id="F2",
+                operator="greater_than",
+                right_evidence_id="F1",
+                predicate="competitor_posts",
+            ),
+        ),
+    )
+    payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [],
+        "comparisons": [{"relation_id": "R1"}],
+        "recommendations": [],
+    }
+
+    result = validate_claim_ledger_v2_payload(payload, ledger)
+
+    assert result.valid is False
+    assert any("relation_id references an invalid trusted relation" in error for error in result.errors)
 
 
 def test_deterministic_content_plan_grading():
