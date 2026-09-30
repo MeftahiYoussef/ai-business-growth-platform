@@ -18,10 +18,15 @@ if str(ROOT) not in sys.path:
 from ml.datasets.build_sft_dataset import load_jsonl, main as dataset_builder_main  # noqa: E402
 from ml.datasets import generate_sft_v2, generate_sft_v2_1  # noqa: E402
 from ml.eval.claim_ledger import (  # noqa: E402
+    EvidenceLedgerV2,
+    EvidenceSourceV2,
     build_evidence_ledger,
     claim_ledger_prompt,
     claim_ledger_response_format,
+    claim_ledger_v2_response_format,
     render_claim_ledger,
+    render_claim_ledger_v2,
+    validate_claim_ledger_v2_payload,
     validate_claim_ledger_payload,
 )
 from ml.eval.contracts import eval_contract_prompt, validate_eval_contract  # noqa: E402
@@ -391,6 +396,181 @@ def test_claim_ledger_multilingual_claim_metadata_remains_canonical():
 
     assert validate_claim_ledger_payload(french_payload, ledger).valid is True
     assert validate_claim_ledger_payload(russian_payload, ledger).valid is True
+
+
+def _claim_ledger_v2_fixture() -> EvidenceLedgerV2:
+    return EvidenceLedgerV2(
+        sources=(
+            EvidenceSourceV2(
+                id="F1",
+                subject="content_performance",
+                predicate="published_posts",
+                value=4,
+                value_type="count",
+            ),
+            EvidenceSourceV2(
+                id="F2",
+                subject="trend",
+                predicate="momentum",
+                value=0.22,
+                value_type="percentage",
+                display_value="22%",
+                polarity="positive",
+            ),
+            EvidenceSourceV2(
+                id="F3",
+                subject="trend",
+                predicate="lifecycle",
+                value="fading",
+                value_type="enum",
+            ),
+            EvidenceSourceV2(
+                id="F4",
+                subject="competitor_a",
+                predicate="competitor_posts",
+                value=8,
+                value_type="count",
+            ),
+            EvidenceSourceV2(
+                id="F5",
+                subject="competitor_b",
+                predicate="competitor_posts",
+                value=3,
+                value_type="count",
+            ),
+            EvidenceSourceV2(
+                id="U1",
+                subject="content_performance",
+                predicate="reach",
+                status="unavailable",
+            ),
+        )
+    )
+
+
+def test_claim_ledger_v2_schema_separates_known_and_unavailable_ids():
+    ledger = _claim_ledger_v2_fixture()
+    schema = claim_ledger_v2_response_format(ledger)["json_schema"]["schema"]
+
+    fact_enum = schema["properties"]["facts"]["items"]["properties"]["evidence_id"]["enum"]
+    limitation_enum = schema["properties"]["limitations"]["items"]["properties"]["evidence_id"]["enum"]
+    comparison_left_enum = schema["properties"]["comparisons"]["items"]["properties"]["left_evidence_id"]["enum"]
+
+    assert "F1" in fact_enum
+    assert "U1" not in fact_enum
+    assert limitation_enum == ["U1"]
+    assert "F4" in comparison_left_enum
+    assert "U1" not in comparison_left_enum
+
+
+def test_claim_ledger_v2_renders_authoritative_facts_without_model_text():
+    ledger = _claim_ledger_v2_fixture()
+    payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}, {"evidence_id": "F3"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [],
+        "recommendations": [],
+    }
+
+    result = validate_claim_ledger_v2_payload(
+        payload,
+        ledger,
+        required_evidence_ids=["F1", "F2", "U1"],
+        critical_evidence_ids=["F2", "U1"],
+    )
+    rendered = render_claim_ledger_v2(
+        payload,
+        ledger,
+        required_evidence_ids=["F1", "F2", "U1"],
+        critical_evidence_ids=["F2", "U1"],
+    )
+
+    assert result.valid is True
+    assert "4 posts were published." in rendered
+    assert "Momentum is 22%." in rendered
+    assert "The trend lifecycle is fading." in rendered
+    assert "Reach data is unavailable." in rendered
+    assert "45%" not in rendered
+    assert "emerging" not in rendered
+
+
+def test_claim_ledger_v2_validates_relations_and_rejects_false_comparisons():
+    ledger = _claim_ledger_v2_fixture()
+    valid_payload = {
+        "facts": [{"evidence_id": "F4"}, {"evidence_id": "F5"}],
+        "limitations": [],
+        "comparisons": [{"left_evidence_id": "F4", "operator": "greater_than", "right_evidence_id": "F5"}],
+        "recommendations": [],
+    }
+    invalid_payload = {
+        "facts": [{"evidence_id": "F4"}, {"evidence_id": "F5"}],
+        "limitations": [],
+        "comparisons": [{"left_evidence_id": "F5", "operator": "greater_than", "right_evidence_id": "F4"}],
+        "recommendations": [],
+    }
+
+    assert validate_claim_ledger_v2_payload(valid_payload, ledger).valid is True
+    invalid = validate_claim_ledger_v2_payload(invalid_payload, ledger)
+    assert invalid.valid is False
+    assert any("comparison is not true" in error for error in invalid.errors)
+
+
+def test_claim_ledger_v2_rejects_cross_predicate_comparisons():
+    ledger = _claim_ledger_v2_fixture()
+    payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [],
+        "comparisons": [{"left_evidence_id": "F1", "operator": "greater_than", "right_evidence_id": "F2"}],
+        "recommendations": [],
+    }
+
+    result = validate_claim_ledger_v2_payload(payload, ledger)
+
+    assert result.valid is False
+    assert any("comparison is not true" in error for error in result.errors)
+
+
+def test_claim_ledger_v2_rejects_required_omission_and_unsafe_recommendation():
+    ledger = _claim_ledger_v2_fixture()
+    payload = {
+        "facts": [{"evidence_id": "F1"}],
+        "limitations": [],
+        "comparisons": [],
+        "recommendations": [{"action": "Say reach improved by 45%.", "rationale_evidence_ids": ["F1"]}],
+    }
+
+    result = validate_claim_ledger_v2_payload(
+        payload,
+        ledger,
+        required_evidence_ids=["F1", "F2", "U1"],
+        critical_evidence_ids=["U1"],
+    )
+
+    assert result.valid is False
+    assert any("action must not contain numeric values" in error for error in result.errors)
+    assert any("action asserts unsupported metric state" in error for error in result.errors)
+    assert any("required evidence not selected" in error for error in result.errors)
+    assert any("critical evidence not selected" in error for error in result.errors)
+
+
+def test_claim_ledger_v2_localizes_facts_and_limitations():
+    ledger = _claim_ledger_v2_fixture()
+    payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [],
+        "recommendations": [],
+    }
+
+    french = render_claim_ledger_v2(payload, ledger, language="fr")
+    russian = render_claim_ledger_v2(payload, ledger, language="ru")
+
+    assert "4 publications ont été publiées." in french
+    assert "Le momentum est de 22%." in french
+    assert "Les données de portée ne sont pas disponibles." in french
+    assert "Было опубликовано 4 публикации." in russian
+    assert "Momentum составляет 22%." in russian
+    assert "Данные по охвату недоступны." in russian
 
 
 def test_deterministic_content_plan_grading():
