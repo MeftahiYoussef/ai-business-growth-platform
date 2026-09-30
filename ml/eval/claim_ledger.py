@@ -7,10 +7,12 @@ from typing import Any, Literal
 
 ClaimType = Literal["fact", "limitation", "recommendation"]
 ClaimLedgerV2Operator = Literal["greater_than", "less_than", "equal"]
+ClaimLedgerV2RelationType = Literal["comparison", "temporal_comparison"]
 
 CLAIM_LEDGER_CONTRACT_VERSION = "claim_ledger_v1"
 CLAIM_TYPES: tuple[ClaimType, ...] = ("fact", "limitation", "recommendation")
 CLAIM_LEDGER_V2_CONTRACT_VERSION = "claim_ledger_v2"
+CLAIM_LEDGER_TRUSTED_RELATION_CONTRACT_VERSION = "claim_ledger_v2_trusted_relations"
 CLAIM_LEDGER_V2_OPERATORS: tuple[ClaimLedgerV2Operator, ...] = ("greater_than", "less_than", "equal")
 
 
@@ -65,6 +67,8 @@ class EvidenceSourceV2:
     value_type: Literal["count", "percentage", "decimal", "enum", "text"] = "text"
     display_value: str | None = None
     polarity: Literal["positive", "negative", "neutral"] | None = None
+    unit: str | None = None
+    time_window: str | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,8 @@ class EvidenceRelationV2:
     operator: ClaimLedgerV2Operator
     right_evidence_id: str
     predicate: str
+    relation_type: ClaimLedgerV2RelationType = "comparison"
+    provenance: Literal["deterministic"] = "deterministic"
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,33 @@ class EvidenceLedgerV2:
     @property
     def relations_by_id(self) -> dict[str, EvidenceRelationV2]:
         return {relation.id: relation for relation in self.relations}
+
+
+def build_trusted_relation_v2(
+    *,
+    id: str,
+    left: EvidenceSourceV2,
+    operator: ClaimLedgerV2Operator,
+    right: EvidenceSourceV2,
+    predicate: str | None = None,
+    relation_type: ClaimLedgerV2RelationType = "comparison",
+) -> EvidenceRelationV2:
+    """Build a relation only when trusted evidence proves it deterministically."""
+
+    relation = EvidenceRelationV2(
+        id=id,
+        left_evidence_id=left.id,
+        operator=operator,
+        right_evidence_id=right.id,
+        predicate=predicate or left.predicate,
+        relation_type=relation_type,
+        provenance="deterministic",
+    )
+    if not _relation_sources_are_compatible(relation, {left.id: left, right.id: right}):
+        raise ValueError(f"relation {id} uses incompatible evidence")
+    if not _comparison_is_true(left, operator, right):
+        raise ValueError(f"relation {id} is not true for trusted evidence")
+    return relation
 
 
 def build_evidence_ledger(
@@ -230,6 +263,7 @@ def claim_ledger_v2_schema(evidence_ledger: EvidenceLedgerV2) -> dict[str, Any]:
             },
             "comparisons": {
                 "type": "array",
+                "maxItems": 100 if relation_ids else 0,
                 "items": _claim_ledger_v2_comparison_item_schema(known_ids, relation_ids),
             },
             "recommendations": {
@@ -270,12 +304,8 @@ def _claim_ledger_v2_comparison_item_schema(known_ids: list[str], relation_ids: 
     return {
         "type": "object",
         "additionalProperties": False,
-        "properties": {
-            "left_evidence_id": {"type": "string", "enum": known_ids},
-            "operator": {"type": "string", "enum": list(CLAIM_LEDGER_V2_OPERATORS)},
-            "right_evidence_id": {"type": "string", "enum": known_ids},
-        },
-        "required": ["left_evidence_id", "operator", "right_evidence_id"],
+        "properties": {"relation_id": {"type": "string", "enum": ["__no_trusted_relations__"]}},
+        "required": ["relation_id"],
     }
 
 
@@ -310,7 +340,8 @@ def claim_ledger_v2_prompt(evidence_ledger: EvidenceLedgerV2) -> str:
         "Do not write fact text. For factual observations, select evidence IDs in facts. "
         "For missing data, select unavailable evidence IDs in limitations. "
         "For comparisons, select relation_id from the provided trusted relations when relations are listed; "
-        "do not invent comparisons. "
+        "do not invent comparisons. Select relation_ids only when they directly answer or support the user request; "
+        "omit true but irrelevant relations. "
         "Use recommendations only when a helpful action is needed; cite known evidence IDs. "
         "Do not copy, rewrite, or invent numeric values. The renderer will write all factual prose. "
         f"Known evidence: {known or 'none'}. "
@@ -337,7 +368,6 @@ def validate_claim_ledger_v2_payload(
     if missing_top_level:
         errors.append(f"payload is missing top-level fields: {', '.join(missing_top_level)}")
 
-    by_id = evidence_ledger.by_id
     relations_by_id = evidence_ledger.relations_by_id
     cited_ids: set[str] = set()
     normalized: dict[str, list[dict[str, Any]]] = {
@@ -396,42 +426,18 @@ def validate_claim_ledger_v2_payload(
             if sorted(set(comparison) - {"relation_id"}):
                 errors.append(f"{path} contains unsupported fields")
         relation_id = comparison.get("relation_id")
-        if relation_id is not None:
-            if relation_id not in relations_by_id:
-                errors.append(f"{path}.relation_id must reference a trusted relation")
-                continue
-            relation = relations_by_id[str(relation_id)]
-            if not _relation_is_true(relation, evidence_ledger):
-                errors.append(f"{path}.relation_id references an invalid trusted relation")
-                continue
-            cited_ids.update((relation.left_evidence_id, relation.right_evidence_id))
-            normalized["comparisons"].append({"relation_id": relation_id})
+        if relation_id is None:
+            errors.append(f"{path}.relation_id is required for comparison claims")
             continue
-        if evidence_ledger.relations:
-            errors.append(f"{path}.relation_id is required when trusted relations are supplied")
+        if relation_id not in relations_by_id:
+            errors.append(f"{path}.relation_id must reference a trusted relation")
             continue
-        if sorted(set(comparison) - {"left_evidence_id", "operator", "right_evidence_id"}):
-            errors.append(f"{path} contains unsupported fields")
-        left_id = comparison.get("left_evidence_id")
-        right_id = comparison.get("right_evidence_id")
-        operator = comparison.get("operator")
-        if left_id not in evidence_ledger.known_ids:
-            errors.append(f"{path}.left_evidence_id must reference known evidence")
+        relation = relations_by_id[str(relation_id)]
+        if not _relation_is_true(relation, evidence_ledger):
+            errors.append(f"{path}.relation_id references an invalid trusted relation")
             continue
-        if right_id not in evidence_ledger.known_ids:
-            errors.append(f"{path}.right_evidence_id must reference known evidence")
-            continue
-        if operator not in CLAIM_LEDGER_V2_OPERATORS:
-            errors.append(f"{path}.operator must be one of {', '.join(CLAIM_LEDGER_V2_OPERATORS)}")
-            continue
-        left = by_id[str(left_id)]
-        right = by_id[str(right_id)]
-        if not _comparison_is_true(left, str(operator), right):
-            errors.append(f"{path} comparison is not true for trusted evidence")
-        cited_ids.update((str(left_id), str(right_id)))
-        normalized["comparisons"].append(
-            {"left_evidence_id": left_id, "operator": operator, "right_evidence_id": right_id}
-        )
+        cited_ids.update((relation.left_evidence_id, relation.right_evidence_id))
+        normalized["comparisons"].append({"relation_id": relation_id})
 
     recommendations = payload.get("recommendations", [])
     if not isinstance(recommendations, list):
@@ -793,9 +799,39 @@ def _relation_is_true(relation: EvidenceRelationV2, evidence_ledger: EvidenceLed
     right = by_id.get(relation.right_evidence_id)
     if left is None or right is None:
         return False
-    if relation.predicate != left.predicate or relation.predicate != right.predicate:
+    if not _relation_sources_are_compatible(relation, by_id):
         return False
     return _comparison_is_true(left, relation.operator, right)
+
+
+def _relation_sources_are_compatible(
+    relation: EvidenceRelationV2,
+    by_id: dict[str, EvidenceSourceV2],
+) -> bool:
+    left = by_id.get(relation.left_evidence_id)
+    right = by_id.get(relation.right_evidence_id)
+    if left is None or right is None:
+        return False
+    if left.id == right.id:
+        return False
+    if left.status != "known" or right.status != "known":
+        return False
+    if relation.provenance != "deterministic":
+        return False
+    if relation.predicate != left.predicate or relation.predicate != right.predicate:
+        return False
+    if left.value_type != right.value_type:
+        return False
+    if left.unit and right.unit and left.unit != right.unit:
+        return False
+    if (
+        relation.relation_type == "comparison"
+        and left.time_window
+        and right.time_window
+        and left.time_window != right.time_window
+    ):
+        return False
+    return True
 
 
 def _is_number(value: object) -> bool:
