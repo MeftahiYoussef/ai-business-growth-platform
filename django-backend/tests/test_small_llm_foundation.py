@@ -21,6 +21,7 @@ from ml.eval.claim_ledger import (  # noqa: E402
     EvidenceLedgerV2,
     EvidenceRelationV2,
     EvidenceSourceV2,
+    build_trusted_relation_v2,
     build_evidence_ledger,
     claim_ledger_prompt,
     claim_ledger_response_format,
@@ -455,13 +456,13 @@ def test_claim_ledger_v2_schema_separates_known_and_unavailable_ids():
 
     fact_enum = schema["properties"]["facts"]["items"]["properties"]["evidence_id"]["enum"]
     limitation_enum = schema["properties"]["limitations"]["items"]["properties"]["evidence_id"]["enum"]
-    comparison_left_enum = schema["properties"]["comparisons"]["items"]["properties"]["left_evidence_id"]["enum"]
+    comparison_schema = schema["properties"]["comparisons"]
 
     assert "F1" in fact_enum
     assert "U1" not in fact_enum
     assert limitation_enum == ["U1"]
-    assert "F4" in comparison_left_enum
-    assert "U1" not in comparison_left_enum
+    assert comparison_schema["maxItems"] == 0
+    assert "left_evidence_id" not in comparison_schema["items"]["properties"]
 
 
 def test_claim_ledger_v2_renders_authoritative_facts_without_model_text():
@@ -496,24 +497,29 @@ def test_claim_ledger_v2_renders_authoritative_facts_without_model_text():
 
 
 def test_claim_ledger_v2_validates_relations_and_rejects_false_comparisons():
-    ledger = _claim_ledger_v2_fixture()
+    left = EvidenceSourceV2(id="F4", subject="competitor_a", predicate="competitor_posts", value=8, value_type="count")
+    right = EvidenceSourceV2(id="F5", subject="competitor_b", predicate="competitor_posts", value=3, value_type="count")
+    ledger = EvidenceLedgerV2(
+        sources=(left, right),
+        relations=(build_trusted_relation_v2(id="R1", left=left, operator="greater_than", right=right),),
+    )
     valid_payload = {
         "facts": [{"evidence_id": "F4"}, {"evidence_id": "F5"}],
         "limitations": [],
-        "comparisons": [{"left_evidence_id": "F4", "operator": "greater_than", "right_evidence_id": "F5"}],
+        "comparisons": [{"relation_id": "R1"}],
         "recommendations": [],
     }
     invalid_payload = {
         "facts": [{"evidence_id": "F4"}, {"evidence_id": "F5"}],
         "limitations": [],
-        "comparisons": [{"left_evidence_id": "F5", "operator": "greater_than", "right_evidence_id": "F4"}],
+        "comparisons": [{"relation_id": "R2"}],
         "recommendations": [],
     }
 
     assert validate_claim_ledger_v2_payload(valid_payload, ledger).valid is True
     invalid = validate_claim_ledger_v2_payload(invalid_payload, ledger)
     assert invalid.valid is False
-    assert any("comparison is not true" in error for error in invalid.errors)
+    assert any("relation_id must reference a trusted relation" in error for error in invalid.errors)
 
 
 def test_claim_ledger_v2_rejects_cross_predicate_comparisons():
@@ -528,7 +534,7 @@ def test_claim_ledger_v2_rejects_cross_predicate_comparisons():
     result = validate_claim_ledger_v2_payload(payload, ledger)
 
     assert result.valid is False
-    assert any("comparison is not true" in error for error in result.errors)
+    assert any("relation_id is required" in error for error in result.errors)
 
 
 def test_claim_ledger_v2_rejects_required_omission_and_unsafe_recommendation():
@@ -610,6 +616,105 @@ def test_claim_ledger_v2_uses_trusted_relation_affordances():
     assert "Engagement data is unavailable." in rendered
 
 
+def test_claim_ledger_v2_no_relation_schema_disallows_comparison_claims():
+    ledger = EvidenceLedgerV2(
+        sources=(
+            EvidenceSourceV2(id="F1", subject="trend", predicate="momentum", value=0.22, value_type="percentage"),
+            EvidenceSourceV2(id="U1", subject="content_performance", predicate="reach", status="unavailable"),
+        )
+    )
+    schema = claim_ledger_v2_response_format(ledger)["json_schema"]["schema"]
+    payload = {
+        "facts": [{"evidence_id": "F1"}],
+        "limitations": [{"evidence_id": "U1"}],
+        "comparisons": [{"relation_id": "R1"}],
+        "recommendations": [],
+    }
+
+    result = validate_claim_ledger_v2_payload(payload, ledger)
+
+    assert schema["properties"]["comparisons"]["maxItems"] == 0
+    assert result.valid is False
+    assert any("relation_id must reference a trusted relation" in error for error in result.errors)
+
+
+def test_claim_ledger_v2_single_relation_schema_allows_only_that_relation():
+    left = EvidenceSourceV2(id="F1", subject="report", predicate="published_posts", value=10, value_type="count")
+    right = EvidenceSourceV2(id="F2", subject="report", predicate="published_posts", value=6, value_type="count")
+    ledger = EvidenceLedgerV2(
+        sources=(left, right),
+        relations=(build_trusted_relation_v2(id="R1", left=left, operator="greater_than", right=right),),
+    )
+    schema = claim_ledger_v2_response_format(ledger)["json_schema"]["schema"]
+    relation_schema = schema["properties"]["comparisons"]["items"]["oneOf"][0]
+    expanded_payload = {
+        "facts": [{"evidence_id": "F1"}, {"evidence_id": "F2"}],
+        "limitations": [],
+        "comparisons": [{"left_evidence_id": "F1", "operator": "greater_than", "right_evidence_id": "F2"}],
+        "recommendations": [],
+    }
+
+    result = validate_claim_ledger_v2_payload(expanded_payload, ledger)
+
+    assert relation_schema["properties"]["relation_id"]["enum"] == ["R1"]
+    assert "left_evidence_id" not in relation_schema["properties"]
+    assert result.valid is False
+    assert any("relation_id is required" in error for error in result.errors)
+
+
+def test_claim_ledger_v2_multi_relation_schema_enumerates_true_relations():
+    current = EvidenceSourceV2(id="F1", subject="report", predicate="published_posts", value=10, value_type="count")
+    previous = EvidenceSourceV2(id="F2", subject="report", predicate="published_posts", value=6, value_type="count")
+    competitor = EvidenceSourceV2(id="F3", subject="competitor_a", predicate="published_posts", value=4, value_type="count")
+    ledger = EvidenceLedgerV2(
+        sources=(current, previous, competitor),
+        relations=(
+            build_trusted_relation_v2(id="R1", left=current, operator="greater_than", right=previous),
+            build_trusted_relation_v2(id="R2", left=current, operator="greater_than", right=competitor),
+            build_trusted_relation_v2(id="R3", left=previous, operator="greater_than", right=competitor),
+        ),
+    )
+    schema = claim_ledger_v2_response_format(ledger)["json_schema"]["schema"]
+    relation_enum = schema["properties"]["comparisons"]["items"]["oneOf"][0]["properties"]["relation_id"]["enum"]
+
+    assert relation_enum == ["R1", "R2", "R3"]
+
+
+def test_claim_ledger_v2_relation_builder_rejects_unsafe_relations():
+    left = EvidenceSourceV2(id="F1", subject="report", predicate="published_posts", value=10, value_type="count")
+    lower = EvidenceSourceV2(id="F2", subject="report", predicate="published_posts", value=6, value_type="count")
+    unavailable = EvidenceSourceV2(id="U1", subject="report", predicate="published_posts", status="unavailable")
+    different_predicate = EvidenceSourceV2(id="F3", subject="report", predicate="draft_posts", value=6, value_type="count")
+    different_type = EvidenceSourceV2(id="F4", subject="report", predicate="published_posts", value="six", value_type="text")
+    unit_left = EvidenceSourceV2(id="F5", subject="report", predicate="published_posts", value=10, value_type="count", unit="posts")
+    different_unit = EvidenceSourceV2(id="F6", subject="report", predicate="published_posts", value=6, value_type="count", unit="items")
+    time_a = EvidenceSourceV2(id="F7", subject="report", predicate="published_posts", value=6, value_type="count", time_window="week_1")
+    time_b = EvidenceSourceV2(id="F8", subject="report", predicate="published_posts", value=4, value_type="count", time_window="week_2")
+
+    assert build_trusted_relation_v2(id="R1", left=left, operator="greater_than", right=lower).id == "R1"
+    with pytest.raises(ValueError, match="not true"):
+        build_trusted_relation_v2(id="R2", left=lower, operator="greater_than", right=left)
+    with pytest.raises(ValueError, match="incompatible"):
+        build_trusted_relation_v2(id="R3", left=left, operator="greater_than", right=unavailable)
+    with pytest.raises(ValueError, match="incompatible"):
+        build_trusted_relation_v2(id="R4", left=left, operator="greater_than", right=different_predicate)
+    with pytest.raises(ValueError, match="incompatible|not true"):
+        build_trusted_relation_v2(id="R5", left=left, operator="greater_than", right=different_type)
+    with pytest.raises(ValueError, match="incompatible"):
+        build_trusted_relation_v2(id="R6", left=unit_left, operator="greater_than", right=different_unit)
+    with pytest.raises(ValueError, match="incompatible"):
+        build_trusted_relation_v2(id="R7", left=left, operator="greater_than", right=left)
+    with pytest.raises(ValueError, match="incompatible"):
+        build_trusted_relation_v2(id="R8", left=time_a, operator="greater_than", right=time_b)
+    assert build_trusted_relation_v2(
+        id="R9",
+        left=time_a,
+        operator="greater_than",
+        right=time_b,
+        relation_type="temporal_comparison",
+    ).id == "R9"
+
+
 def test_claim_ledger_v2_rejects_invented_or_expanded_relations_when_affordances_exist():
     ledger = EvidenceLedgerV2(
         sources=(
@@ -646,7 +751,7 @@ def test_claim_ledger_v2_rejects_invented_or_expanded_relations_when_affordances
     assert invented.valid is False
     assert any("relation_id must reference a trusted relation" in error for error in invented.errors)
     assert expanded.valid is False
-    assert any("relation_id is required when trusted relations are supplied" in error for error in expanded.errors)
+    assert any("relation_id is required for comparison claims" in error for error in expanded.errors)
 
 
 def test_claim_ledger_v2_rejects_invalid_trusted_relation_definition():
