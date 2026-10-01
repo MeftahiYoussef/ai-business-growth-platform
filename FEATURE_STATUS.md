@@ -19,7 +19,8 @@
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
 | Reports | Complete MVP + async foundation | Executive report generated from analytics summary. Asynchronous business-performance reports now have durable PostgreSQL jobs, status polling, idempotency, deterministic metrics, optional mocked AI recommendations, JSON/CSV exports, frontend support, and verified staging activation behind `ASYNC_REPORTS_ENABLED` / `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`. |
 | Notifications | Complete MVP | In-app notifications for workflow/report events. |
-| Small LLM model lab | Experimental local baseline + constrained decoding + semantic audit | `Qwen/Qwen3-1.7B` remains the primary local baseline candidate. Local provider, corrected `golden_eval_v2` dataset, production-owned content-plan contract, deterministic metrics, dataset builder, LoRA config, and RAG design docs exist. Groq reference comparison completed; Qwen full 50-case baseline completed; LoRA v1 trained locally but did not improve structural behavior and is rejected. A local llama.cpp constrained-decoding diagnostic with `Qwen3-1.7B-Q4_K_M.gguf` fixed content-plan schema/seven-day validity. Semantic scoring v3 shows remaining gaps in required-fact recall, insufficient-evidence handling, numeric preservation, and hallucination resistance. LoRA v2 and v2.1 are both rejected. A Qwen3-4B Q4_K_M capacity check loaded locally and passed JSON Schema enforcement, but failed direct semantic sanity before the pilot by inferring unavailable reach improvement and mutating `22%` to `45%`, so 4B is not promoted. Groq remains live default; RAG and staging activation have not run. |
+| Evidence grounding contract | Complete foundation | Production-owned deterministic evidence/relation grounding contract exists under Django backend code. It is model-agnostic infrastructure only and does not change current APIs or Groq behavior. |
+| Small LLM model lab | Paused research | AI research is paused while MVP readiness is prioritized. `Qwen/Qwen3-1.7B` with constrained trusted evidence/relation selection is promising locally but not deployed. LoRA v1/v2/v2.1 and Qwen3-4B are not promoted. Groq remains the live production provider. RAG has not started. |
 | Billing | Backlog | Phase 2. |
 | Knowledge base | Backlog | Phase 3. |
 | Social inbox | Backlog | Phase 3. |
@@ -28,6 +29,7 @@
 
 - AI provider: Groq only. The model defaults to `openai/gpt-oss-20b` through Groq.
 - Experimental local model: `Qwen/Qwen3-1.7B` for local evaluation only. `Qwen/Qwen3-4B` was capacity-checked and rejected before pilot.
+- Local model and RAG work are paused until the MVP journey is operational.
 - Social provider: `sandbox`
 
 No sandbox output is presented as a real provider integration.
@@ -36,6 +38,6 @@ No sandbox output is presented as a real provider integration.
 
 - Use PostgreSQL for shared development/staging/production. SQLite is only a local fallback.
 - Production settings require real deployment environment values for secret key, allowed hosts, CORS/CSRF origins, database connection values, and HTTPS/security headers.
-- Staging uses platform-managed secrets only. Do not commit Railway, Render, Vercel, database, Django, JWT, or Groq secrets.
+- Staging uses platform-managed secrets only. Do not commit Railway, Render, Vercel, database, Django, JWT, or Groq secrets. Read-only Railway status on 2026-10-01 showed backend/worker failed, Postgres/Redis offline, and the Postgres volume ready but detached; safe staging recovery remains separate from MVP documentation work.
 - Railway staging is usage-metered; monitor usage and configure budget alerts or hard limits where the workspace plan supports them. Redis and one Celery worker were added only after explicit approval; async reports reuse those services and do not require another worker or Redis instance. Do not add more metered services without approval.
 - Database backups should cover PostgreSQL data, migration history, and any future media/static upload storage. Local SQLite files are not a production backup target.

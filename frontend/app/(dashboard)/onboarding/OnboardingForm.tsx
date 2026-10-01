@@ -12,6 +12,7 @@ const steps = [
   { label: 'Country', key: 'country' },
   { label: 'Product/service', key: 'productOrService' },
   { label: 'Target audience', key: 'targetAudience' },
+  { label: 'Brand voice', key: 'brandVoice' },
   { label: 'Goals', key: 'goals', textarea: true },
   { label: 'Known competitors', key: 'knownCompetitors', textarea: true }
 ] as const;
@@ -24,6 +25,7 @@ const defaults: Values = {
   country: 'United States',
   productOrService: 'AI templates and launch kits',
   targetAudience: 'Founders, creators, and solo marketers',
+  brandVoice: 'Clear, confident, and helpful',
   goals: 'Increase qualified leads and improve content consistency',
   knownCompetitors: 'LaunchKit, GrowthPilot, Trendly'
 };
@@ -57,7 +59,7 @@ export function OnboardingForm() {
         targetAudience: values.targetAudience,
         goals: split(values.goals),
         knownCompetitors: split(values.knownCompetitors),
-        brandVoice: 'Clear, confident, and helpful'
+        brandVoice: values.brandVoice
       });
       router.replace('/dashboard');
       router.refresh();

@@ -60,7 +60,7 @@ export default async function DashboardPage() {
         <div className="action-row">
           <Link className="button button-primary" href="/generate">Generate ideas</Link>
           <Link className="button button-secondary" href="/trends">Review trends</Link>
-          <Link className="button button-secondary" href="/strategy">Sat</Link>
+          <Link className="button button-secondary" href="/strategy">Strategy</Link>
         </div>
       </section>
     </div>
