@@ -48,7 +48,7 @@ class ContentDraftSerializer(serializers.ModelSerializer):
         model = ContentDraft
         fields = [
             "_id", "businessId", "title", "caption", "platform", "contentType", "hashtags", "cta",
-            "assignedTo", "createdBy", "status", "scheduledAt", "timezone", "approvalStatus",
+            "objective", "assignedTo", "createdBy", "status", "scheduledAt", "timezone", "approvalStatus",
             "providerPostId", "sourceAiGenerationId", "sourcePlanDay", "publicationResult", "retryCount", "maxRetries", "createdAt", "updatedAt",
         ]
 

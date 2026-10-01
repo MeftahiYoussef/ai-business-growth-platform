@@ -5,6 +5,10 @@ export function listDrafts() {
   return apiFetch<ApiEnvelope<ContentDraft[]>>('/planner/drafts', { retry: true });
 }
 
+export function getDraft(id: string) {
+  return apiFetch<ApiEnvelope<ContentDraft>>(`/planner/drafts/${id}`, { retry: true });
+}
+
 export function createDraft(input: {
   businessId: string;
   title: string;
@@ -19,4 +23,16 @@ export function createDraft(input: {
 
 export function workflowAction(id: string, action: string, body: Record<string, unknown> = {}) {
   return apiFetch<ApiEnvelope<ContentDraft>>(`/planner/drafts/${id}/${action}`, { method: 'POST', body });
+}
+
+export function updateDraft(id: string, input: Partial<{
+  title: string;
+  caption: string;
+  cta: string;
+  hashtags: string[];
+  platform: string;
+  contentType: string;
+  objective: string;
+}>) {
+  return apiFetch<ApiEnvelope<ContentDraft>>(`/planner/drafts/${id}`, { method: 'PUT', body: input });
 }

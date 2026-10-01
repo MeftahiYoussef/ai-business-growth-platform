@@ -17,6 +17,8 @@ class Business(models.Model):
     goals = models.JSONField(default=list, blank=True)
     known_competitors = models.JSONField(default=list, blank=True)
     brand_voice = models.CharField(max_length=500, default="Clear, confident, and helpful", blank=True)
+    preferred_platforms = models.JSONField(default=list, blank=True)
+    posting_frequency = models.CharField(max_length=120, default="", blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

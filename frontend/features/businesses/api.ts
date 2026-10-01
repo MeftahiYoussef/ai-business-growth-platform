@@ -10,6 +10,8 @@ export type BusinessInput = {
   goals: string[];
   knownCompetitors: string[];
   brandVoice?: string;
+  preferredPlatforms?: string[];
+  postingFrequency?: string;
 };
 
 export function getMyBusiness() {

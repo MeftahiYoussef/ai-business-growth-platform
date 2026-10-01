@@ -235,6 +235,7 @@ export function StudioClient({ business, generations }: { business: Business | n
                     <label className="field"><span>Title</span><input value={edited.title || item.title} onChange={(event) => editItem(item.day_number, 'title', event.target.value)} /></label>
                     <label className="field"><span>Caption</span><textarea value={edited.caption || item.caption} onChange={(event) => editItem(item.day_number, 'caption', event.target.value)} rows={4} /></label>
                     <label className="field"><span>Call to action</span><input value={edited.call_to_action || item.call_to_action} onChange={(event) => editItem(item.day_number, 'call_to_action', event.target.value)} /></label>
+                    <label className="field"><span>Objective</span><input value={edited.objective || item.objective} onChange={(event) => editItem(item.day_number, 'objective', event.target.value)} /></label>
                     <p>{item.hook}</p>
                     <small>{item.source_context.join(', ') || 'No source context'} · Review required: {String(item.requires_human_review)}</small>
                   </div>

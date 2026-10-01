@@ -14,6 +14,8 @@ const steps = [
   { label: 'Target audience', key: 'targetAudience' },
   { label: 'Brand voice', key: 'brandVoice' },
   { label: 'Goals', key: 'goals', textarea: true },
+  { label: 'Preferred platforms', key: 'preferredPlatforms', textarea: true },
+  { label: 'Posting frequency', key: 'postingFrequency' },
   { label: 'Known competitors', key: 'knownCompetitors', textarea: true }
 ] as const;
 
@@ -27,6 +29,8 @@ const defaults: Values = {
   targetAudience: 'Founders, creators, and solo marketers',
   brandVoice: 'Clear, confident, and helpful',
   goals: 'Increase qualified leads and improve content consistency',
+  preferredPlatforms: 'Instagram, LinkedIn',
+  postingFrequency: '4 posts per week',
   knownCompetitors: 'LaunchKit, GrowthPilot, Trendly'
 };
 
@@ -59,7 +63,9 @@ export function OnboardingForm() {
         targetAudience: values.targetAudience,
         goals: split(values.goals),
         knownCompetitors: split(values.knownCompetitors),
-        brandVoice: values.brandVoice
+        brandVoice: values.brandVoice,
+        preferredPlatforms: split(values.preferredPlatforms),
+        postingFrequency: values.postingFrequency
       });
       router.replace('/dashboard');
       router.refresh();

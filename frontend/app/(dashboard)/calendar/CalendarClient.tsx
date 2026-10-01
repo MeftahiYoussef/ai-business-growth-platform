@@ -1,6 +1,7 @@
 'use client';
 
 import { CalendarPlus, CheckCircle2, Send } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AppCard } from '@/components/ui/AppCard';
@@ -44,8 +45,13 @@ export function CalendarClient({ business, drafts }: { business: Business | null
       {drafts.length === 0 ? <AppCard>No calendar content yet.</AppCard> : drafts.map((draft) => (
         <AppCard key={draft._id}>
           <div className="row-between">
-            <span><strong>{draft.title}</strong><small>{draft.platform} · {draft.status} · {draft.scheduledAt || 'Unscheduled'}</small></span>
+            <span>
+              <strong>{draft.title}</strong>
+              <small>{draft.platform} · {draft.contentType || 'Content'} · {draft.status} · {draft.scheduledAt || 'Unscheduled'}</small>
+              {draft.objective ? <small>{draft.objective}</small> : null}
+            </span>
             <span className="action-row">
+              <Link className="button button-secondary" href={`/calendar/${draft._id}`}>Edit</Link>
               <Button variant="secondary" onClick={() => action(draft._id, 'request-review')}><Send size={16} /> Review</Button>
               <Button variant="secondary" onClick={() => action(draft._id, 'approve')}><CheckCircle2 size={16} /> Approve</Button>
               <Button onClick={() => action(draft._id, 'schedule')}>Schedule</Button>
