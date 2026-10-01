@@ -32,6 +32,7 @@ export function ProfileClient({ business }: { business: Business | null }) {
         <hr />
         <InfoRow label="Product/service" value={business?.productOrService || '-'} />
         <InfoRow label="Target audience" value={business?.targetAudience || '-'} />
+        <InfoRow label="Brand voice" value={business?.brandVoice || '-'} />
         <InfoRow label="Goals" value={business?.goals.join(', ') || '-'} />
         <InfoRow label="Known competitors" value={business?.knownCompetitors.join(', ') || '-'} />
       </AppCard>
