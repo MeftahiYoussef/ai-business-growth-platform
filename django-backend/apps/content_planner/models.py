@@ -47,6 +47,7 @@ class ContentDraft(models.Model):
     caption = models.TextField(blank=True, default="")
     platform = models.CharField(max_length=64)
     content_type = models.CharField(max_length=80, blank=True, default="")
+    objective = models.CharField(max_length=255, blank=True, default="")
     hashtags = models.JSONField(default=list, blank=True)
     cta = models.TextField(blank=True, default="")
     campaign = models.ForeignKey(Campaign, null=True, blank=True, related_name="drafts", on_delete=models.SET_NULL)

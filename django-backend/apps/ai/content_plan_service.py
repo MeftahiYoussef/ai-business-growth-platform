@@ -422,12 +422,14 @@ def create_drafts_from_plan(*, user, generation_id: str, item_day_numbers: list[
             title = edited.get("title") or item["title"]
             caption = edited.get("caption") or item["caption"]
             cta = edited.get("call_to_action") or item["call_to_action"]
+            objective = edited.get("objective") or item["objective"]
             draft = ContentDraft.objects.create(
                 business=business,
                 title=title,
                 caption=caption,
                 platform=item["platform"],
                 content_type=item["content_type"],
+                objective=objective,
                 hashtags=edited.get("hashtags") or item["hashtags"],
                 cta=cta,
                 created_by=user,

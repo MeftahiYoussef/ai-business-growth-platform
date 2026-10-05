@@ -2,11 +2,11 @@
 
 | Priority | Task | Files | Dependencies | Acceptance Criteria |
 | --- | --- | --- | --- | --- |
-| P0 | Safely recover existing Railway staging | Existing Railway services and volumes | Account access plus preserved existing volumes | Existing Postgres volume is attached, data integrity is verified, Redis/web/worker recover without replacement, and full MVP E2E passes. |
-| P0 | Monitor Railway staging usage | Railway dashboard | Active Railway staging services | Usage remains within the intended staging budget and no paid plan upgrade is selected without approval. |
-| P0 | Complete provider-native Git autodeploy evidence | Railway/Vercel dashboards | Deferred provider Git connection verification | Prove Vercel and Railway deploy the exact `main` merge commit after CI without using provider deployment tokens. |
-| P1 | Add focused draft edit screen | frontend calendar/planner pages | Existing draft update API | Users can edit and save title, caption, CTA, hashtags, platform, content type, and objective from generated drafts. |
-| P1 | Add business profile edit flow | profile/settings pages | Existing business update API | Users can update business context after onboarding without recreating the business. |
+| P0 | Provision fresh free staging | Render, Neon, Upstash, existing Vercel | Provider account access | One Render Free web service uses Neon Free PostgreSQL, Upstash Free Redis, Groq, and existing Vercel frontend. |
+| P0 | Run fresh staging MVP E2E | Vercel/Render/Neon/Upstash | Fresh free staging provisioned | Auth, business, async Groq plan, Celery, drafts, edit, report, export, relogin, and persistence pass. |
+| P0 | Complete provider-native Git autodeploy evidence | Render/Vercel dashboards | Provider Git connection verification | Prove Vercel and Render deploy the exact `main` merge commit after CI without provider deployment tokens. |
+| Done | Add focused draft edit screen | frontend calendar/planner pages | Existing draft update API | Users can edit and save title, caption, CTA, hashtags, platform, content type, and objective from generated drafts. |
+| Done | Add business profile edit flow | profile/settings pages | Existing business update API | Users can update business context after onboarding without recreating the business. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
 | Done | Activate async reports in staging | Existing Railway web/worker/Redis and Vercel frontend | Source async report foundation, migrations, CI | Completed on 2026-08-01. `ASYNC_REPORTS_ENABLED` and `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED` were enabled on the existing staging services, browser/API smoke tests passed, and the synchronous report fallback remains available. |
 | P1 | Async jobs beyond reports | Django backend | Celery/Redis staging worker | Social sync and future publishing-related jobs run async with retry logs; publishing remains explicitly gated and unimplemented. |

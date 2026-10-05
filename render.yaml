@@ -5,7 +5,7 @@ services:
     rootDir: django-backend
     plan: free
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -"
+    startCommand: sh bin/render_free_staging_start.sh
     healthCheckPath: /api/health/ready/
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -20,30 +20,28 @@ services:
         sync: false
       - key: USE_SQLITE
         value: "false"
-      - key: DATABASE_NAME
-        fromDatabase:
-          name: ai-business-growth-postgres-staging
-          property: database
-      - key: DATABASE_USER
-        fromDatabase:
-          name: ai-business-growth-postgres-staging
-          property: user
-      - key: DATABASE_PASSWORD
-        fromDatabase:
-          name: ai-business-growth-postgres-staging
-          property: password
-      - key: DATABASE_HOST
-        fromDatabase:
-          name: ai-business-growth-postgres-staging
-          property: host
-      - key: DATABASE_PORT
-        fromDatabase:
-          name: ai-business-growth-postgres-staging
-          property: port
+      - key: DATABASE_URL
+        sync: false
       - key: DATABASE_CONN_MAX_AGE
         value: "60"
       - key: DATABASE_SSLMODE
         value: require
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: CELERY_WORKER_CONCURRENCY
+        value: "1"
+      - key: START_CELERY_IN_WEB
+        value: "true"
+      - key: AI_ASYNC_CONTENT_PLAN_ENABLED
+        value: "true"
+      - key: ASYNC_REPORTS_ENABLED
+        value: "true"
+      - key: REPORT_AI_RECOMMENDATIONS_ENABLED
+        value: "true"
       - key: AI_PROVIDER
         value: groq
       - key: GROQ_API_KEY
@@ -76,9 +74,3 @@ services:
         value: "true"
       - key: DJANGO_LOG_LEVEL
         value: INFO
-
-databases:
-  - name: ai-business-growth-postgres-staging
-    plan: free
-    databaseName: business_intelligence_staging
-    user: business_intelligence_staging

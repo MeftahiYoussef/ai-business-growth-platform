@@ -3,7 +3,7 @@
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Authentication | Complete | Simple JWT backend, httpOnly cookie via Next.js route handlers. |
-| Business workspace | Partial | Core profile exists; advanced brand fields need UI expansion. |
+| Business workspace | Complete MVP | Core profile and focused edit flow cover business name, industry, market, product/service, target audience, brand voice, objectives, preferred platforms, posting frequency, and competitors. |
 | Team permissions | Complete MVP | Business roles, invitations, role enforcement tests. |
 | Social integrations | Sandbox | Sandbox provider stores accounts/posts/metrics; real OAuth deferred. |
 | Social sync | Sandbox | Synchronous mock sync endpoint; Celery deferred. |
@@ -13,8 +13,8 @@
 | Celery/Redis async AI jobs | Staging active | Django Celery app, Redis settings, queued generation status, idempotency, safe retries, polling API, frontend opt-in UX, and local Redis docs are implemented. Railway staging has a private Redis service and private Celery worker; the Vercel async UI is enabled, browser-verified, and now used for both content-plan and report workflows. |
 | PostgreSQL readiness | Complete MVP | SQLite fallback preserved; PostgreSQL settings, driver, migrations, indexes, health endpoints, and CI service configured. |
 | Health endpoints | Complete MVP | Liveness and database readiness endpoints exist under `/api/health/`. |
-| Staging deployment rehearsal | Complete MVP | Vercel frontend, Railway Django backend, Railway PostgreSQL, private Redis, and private Celery worker are live. Health, auth, async real Groq generation, status polling, draft conversion, duplicate prevention, backup, isolated restore, rollback, and latest-main recovery were verified. GitHub Actions staging verification is live; provider-native Vercel/Railway autodeploy remains deferred. Render PostgreSQL is preserved but unused. |
-| Content calendar | Complete MVP | List/calendar workflow, draft/review/approve/schedule. |
+| Staging deployment rehearsal | Track B pending | Railway is no longer the active staging host. Fresh zero-cost staging target is existing Vercel frontend, Render Free backend, Neon Free PostgreSQL, Upstash Free Redis, and Groq. Provider access/configuration is pending. |
+| Content calendar | Complete MVP | List/calendar workflow, draft edit, review, approve, and schedule. |
 | Competitor comparison | Complete MVP | Backend comparison endpoint with evidence-style fields. |
 | Trend discovery | Existing | Existing trends/analyze flow preserved. |
 | Reports | Complete MVP + async foundation | Executive report generated from analytics summary. Asynchronous business-performance reports now have durable PostgreSQL jobs, status polling, idempotency, deterministic metrics, optional mocked AI recommendations, JSON/CSV exports, frontend support, and verified staging activation behind `ASYNC_REPORTS_ENABLED` / `NEXT_PUBLIC_ASYNC_REPORTS_ENABLED`. |
@@ -38,6 +38,6 @@ No sandbox output is presented as a real provider integration.
 
 - Use PostgreSQL for shared development/staging/production. SQLite is only a local fallback.
 - Production settings require real deployment environment values for secret key, allowed hosts, CORS/CSRF origins, database connection values, and HTTPS/security headers.
-- Staging uses platform-managed secrets only. Do not commit Railway, Render, Vercel, database, Django, JWT, or Groq secrets. Read-only Railway status on 2026-10-01 showed backend/worker failed, Postgres/Redis offline, and the Postgres volume ready but detached; safe staging recovery remains separate from MVP documentation work.
+- Staging uses platform-managed secrets only. Do not commit Render, Neon, Upstash, Vercel, database, Django, JWT, or Groq secrets. Railway is archive/recovery-only and should not receive new deployment mutations.
 - Railway staging is usage-metered; monitor usage and configure budget alerts or hard limits where the workspace plan supports them. Redis and one Celery worker were added only after explicit approval; async reports reuse those services and do not require another worker or Redis instance. Do not add more metered services without approval.
 - Database backups should cover PostgreSQL data, migration history, and any future media/static upload storage. Local SQLite files are not a production backup target.

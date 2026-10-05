@@ -13,6 +13,8 @@ class BusinessSerializer(MongoCompatMixin, serializers.ModelSerializer):
     targetAudience = serializers.CharField(source="target_audience")
     knownCompetitors = serializers.JSONField(source="known_competitors", required=False)
     brandVoice = serializers.CharField(source="brand_voice", required=False, allow_blank=True)
+    preferredPlatforms = serializers.JSONField(source="preferred_platforms", required=False)
+    postingFrequency = serializers.CharField(source="posting_frequency", required=False, allow_blank=True)
     createdAt = serializers.SerializerMethodField()
     updatedAt = serializers.SerializerMethodField()
 
@@ -20,7 +22,8 @@ class BusinessSerializer(MongoCompatMixin, serializers.ModelSerializer):
         model = Business
         fields = [
             "_id", "ownerId", "name", "industry", "country", "productOrService",
-            "targetAudience", "goals", "knownCompetitors", "brandVoice", "createdAt", "updatedAt",
+            "targetAudience", "goals", "knownCompetitors", "brandVoice", "preferredPlatforms",
+            "postingFrequency", "createdAt", "updatedAt",
         ]
 
     def get_ownerId(self, obj):
@@ -40,4 +43,9 @@ class BusinessSerializer(MongoCompatMixin, serializers.ModelSerializer):
     def validate_known_competitors(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError("knownCompetitors must be an array")
+        return value
+
+    def validate_preferred_platforms(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("preferredPlatforms must be an array")
         return value

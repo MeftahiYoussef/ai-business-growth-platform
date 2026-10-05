@@ -59,6 +59,15 @@ class DraftView(APIView):
 
 
 class DraftDetailView(APIView):
+    @extend_schema(operation_id="planner_draft_detail", responses={200: ContentDraftSerializer, 404: None})
+    def get(self, request, draft_id):
+        business = get_owned_business(request.user)
+        draft = ContentDraft.objects.filter(id=draft_id, business=business).first()
+        if not draft:
+            return Response({"success": False, "message": "Draft not found"}, status=404)
+        return Response({"success": True, "data": ContentDraftSerializer(draft).data})
+
+    @extend_schema(operation_id="planner_draft_update", request=ContentDraftSerializer, responses={200: ContentDraftSerializer, 404: None})
     def put(self, request, draft_id):
         business = get_owned_business(request.user)
         draft = ContentDraft.objects.filter(id=draft_id, business=business).first()

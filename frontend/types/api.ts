@@ -41,6 +41,8 @@ export interface Business {
   goals: string[];
   knownCompetitors: string[];
   brandVoice: string;
+  preferredPlatforms?: string[];
+  postingFrequency?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -176,6 +178,7 @@ export interface ContentDraft {
   caption: string;
   platform: string;
   contentType: string;
+  objective: string;
   hashtags: string[];
   cta: string;
   status: string;

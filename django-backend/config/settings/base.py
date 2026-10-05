@@ -1,6 +1,8 @@
 import os
+import ssl
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -118,6 +120,27 @@ TEMPLATES = [
 USE_SQLITE = env_bool("USE_SQLITE")
 
 
+def database_from_url(url: str) -> dict[str, object]:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise RuntimeError("DATABASE_URL must use postgres:// or postgresql://")
+    query = parse_qs(parsed.query)
+    options = {}
+    sslmode = query.get("sslmode", [first_env("DATABASE_SSLMODE", "POSTGRES_SSLMODE", default="require")])[0]
+    if sslmode:
+        options["sslmode"] = sslmode
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": unquote(parsed.path.lstrip("/")),
+        "USER": unquote(parsed.username or ""),
+        "PASSWORD": unquote(parsed.password or ""),
+        "HOST": parsed.hostname or "",
+        "PORT": str(parsed.port or 5432),
+        "CONN_MAX_AGE": env_int("DATABASE_CONN_MAX_AGE", first_env("POSTGRES_CONN_MAX_AGE", default="60")),
+        "OPTIONS": options,
+    }
+
+
 def build_database_config() -> dict[str, dict[str, object]]:
     if USE_SQLITE:
         return {
@@ -126,6 +149,9 @@ def build_database_config() -> dict[str, dict[str, object]]:
                 "NAME": str(BASE_DIR / "db.sqlite3"),
             }
         }
+    database_url = first_env("DATABASE_URL", "POSTGRES_URL")
+    if database_url:
+        return {"default": database_from_url(database_url)}
 
     options = {}
     sslmode = first_env("DATABASE_SSLMODE", "POSTGRES_SSLMODE", default="prefer")
@@ -239,6 +265,10 @@ LOCAL_LLM_DISABLE_THINKING = env_bool("LOCAL_LLM_DISABLE_THINKING", "true")
 REDIS_URL = env("REDIS_URL", "")
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", REDIS_URL or "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", REDIS_URL or "redis://localhost:6379/1")
+if CELERY_BROKER_URL.startswith("rediss://"):
+    CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}
+if CELERY_RESULT_BACKEND.startswith("rediss://"):
+    CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER")
 CELERY_TASK_EAGER_PROPAGATES = env_bool("CELERY_TASK_EAGER_PROPAGATES", "true")
 CELERY_TASK_TIME_LIMIT = env_int("CELERY_TASK_TIME_LIMIT", "180")
