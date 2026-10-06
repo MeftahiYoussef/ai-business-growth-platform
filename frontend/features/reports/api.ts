@@ -19,7 +19,7 @@ export function queueBusinessPerformanceReport(input: {
   includeAiRecommendations: boolean;
   idempotencyKey?: string;
 }) {
-  return apiFetch<ReportQueueResponse>('/reports/queue/', {
+  return apiFetch<ReportQueueResponse>('/reports/queue', {
     method: 'POST',
     headers: input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : undefined,
     body: {
@@ -33,13 +33,13 @@ export function queueBusinessPerformanceReport(input: {
 }
 
 export function getReportJobStatus(jobId: string) {
-  return apiFetch<ReportJobStatusResponse>(`/reports/jobs/${jobId}/status/`, { retry: true });
+  return apiFetch<ReportJobStatusResponse>(`/reports/jobs/${jobId}/status`, { retry: true });
 }
 
 export function getReport(reportId: string) {
-  return apiFetch<ApiEnvelope<Report>>(`/reports/${reportId}/`, { retry: true });
+  return apiFetch<ApiEnvelope<Report>>(`/reports/${reportId}`, { retry: true });
 }
 
 export function reportExportUrl(reportId: string, format: 'json' | 'csv') {
-  return `/api/backend/reports/${reportId}/export.${format}/`;
+  return `/api/backend/reports/${reportId}/export.${format}`;
 }

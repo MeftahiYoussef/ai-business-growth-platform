@@ -38,7 +38,7 @@ export function generateWeeklyContentPlan(input: {
   goal?: string;
   additionalInstructions?: string;
 }) {
-  return apiFetch<ContentPlanGenerationResponse>('/ai/content-plans/generate/', {
+  return apiFetch<ContentPlanGenerationResponse>('/ai/content-plans/generate', {
     method: 'POST',
     body: {
       business_id: input.businessId,
@@ -58,7 +58,7 @@ export function queueWeeklyContentPlan(input: {
   additionalInstructions?: string;
   idempotencyKey?: string;
 }) {
-  return apiFetch<ContentPlanQueueResponse>('/ai/content-plans/queue/', {
+  return apiFetch<ContentPlanQueueResponse>('/ai/content-plans/queue', {
     method: 'POST',
     headers: input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : undefined,
     body: {
@@ -72,11 +72,11 @@ export function queueWeeklyContentPlan(input: {
 }
 
 export function getContentPlanStatus(id: string) {
-  return apiFetch<ContentPlanStatusResponse>(`/ai/content-plans/${id}/status/`, { retry: true });
+  return apiFetch<ContentPlanStatusResponse>(`/ai/content-plans/${id}/status`, { retry: true });
 }
 
 export function createDraftsFromPlan(id: string, itemDayNumbers: number[], editedItems: Record<string, Partial<ContentPlanItem>>) {
-  return apiFetch<ApiEnvelope<ContentDraft[]>>(`/ai/content-plans/${id}/create-drafts/`, {
+  return apiFetch<ApiEnvelope<ContentDraft[]>>(`/ai/content-plans/${id}/create-drafts`, {
     method: 'POST',
     body: {
       item_day_numbers: itemDayNumbers,
