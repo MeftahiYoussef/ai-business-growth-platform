@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backendProxyPath } from '@/app/api/backend/[...path]/route';
+import { backendProxyPath, isJsonContentType } from '@/app/api/backend/[...path]/route';
 
 describe('backendProxyPath', () => {
   it('preserves trailing slash for Django POST endpoints', () => {
@@ -12,5 +12,10 @@ describe('backendProxyPath', () => {
     expect(
       backendProxyPath(['ai', 'studio', 'history'])
     ).toBe('/ai/studio/history/');
+  });
+
+  it('distinguishes JSON API responses from download responses', () => {
+    expect(isJsonContentType('application/json; charset=utf-8')).toBe(true);
+    expect(isJsonContentType('text/csv')).toBe(false);
   });
 });
