@@ -9,6 +9,19 @@ export function backendProxyPath(path: string[]) {
   return `/${path.join('/')}/`;
 }
 
+function passthroughHeaders(response: Response) {
+  const headers = new Headers();
+  for (const name of ['content-type', 'content-disposition', 'cache-control']) {
+    const value = response.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
+}
+
+export function isJsonContentType(contentType: string) {
+  return contentType.toLowerCase().includes('application/json');
+}
+
 async function proxy(request: Request, { params }: Params) {
   const { path } = await params;
   const token = await getToken();
@@ -40,8 +53,16 @@ async function proxy(request: Request, { params }: Params) {
     );
   }
 
-  const body = await response.json();
-  return NextResponse.json(body, { status: response.status });
+  const contentType = response.headers.get('content-type') || '';
+  if (isJsonContentType(contentType)) {
+    const body = await response.json();
+    return NextResponse.json(body, { status: response.status });
+  }
+
+  return new NextResponse(await response.arrayBuffer(), {
+    status: response.status,
+    headers: passthroughHeaders(response)
+  });
 }
 
 export const GET = proxy;
