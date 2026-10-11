@@ -136,6 +136,7 @@ export function StudioClient({ business, generations }: { business: Business | n
       return;
     }
     setLoadingPlan(true);
+    setPlanJobStatus(asyncContentPlanEnabled() ? 'submitting' : null);
     let queuedAsync = false;
     try {
       if (asyncContentPlanEnabled()) {
@@ -210,7 +211,7 @@ export function StudioClient({ business, generations }: { business: Business | n
           </div>
           <label className="field"><span>Additional instructions</span><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={1200} /></label>
           <Button onClick={generatePlan} disabled={!business || loadingPlan}>
-            <Sparkles size={18} /> {loadingPlan ? (planJobStatus === 'retrying' ? 'Retrying...' : planJobStatus === 'queued' ? 'Queued...' : 'Generating...') : 'Generate seven-day plan'}
+            <Sparkles size={18} /> {loadingPlan ? (planJobStatus === 'submitting' ? 'Submitting...' : planJobStatus === 'retrying' ? 'Retrying...' : planJobStatus === 'queued' ? 'Queued...' : 'Generating...') : 'Generate seven-day plan'}
           </Button>
         </div>
       </AppCard>

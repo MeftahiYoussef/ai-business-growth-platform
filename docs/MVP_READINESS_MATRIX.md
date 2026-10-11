@@ -1,23 +1,23 @@
 # MVP Readiness Matrix
 
-Verified date: 2026-10-01
+Verified date: 2026-10-11
 
 | Area | Status | Blocker | Severity | Required for MVP | Owner/action | Verified date |
 | --- | --- | --- | --- | --- | --- | --- |
-| Authentication | READY | None known in code audit. | - | Yes | Run browser E2E after staging recovery. | 2026-10-01 |
-| Business onboarding | READY | Staging E2E pending on fresh Track B deployment. | P1 | Yes | Verify create/edit business profile on Vercel + Render + Neon. | 2026-10-01 |
-| AI content plan | READY | Needs staging E2E once infrastructure is healthy. | P1 | Yes | Verify one Groq seven-day generation through queue/polling. | 2026-10-01 |
-| Async jobs | READY | Provider deployment pending for Render + Upstash. | P0 | Yes | Create free Upstash Redis and verify Celery concurrency 1 in Render web service. | 2026-10-01 |
-| Draft editing | READY | Staging E2E pending on fresh Track B deployment. | P1 | Yes | Verify draft edit/save/reload after deployment. | 2026-10-01 |
-| Calendar | PARTIAL | List view only. | P3 | Yes | Use list for MVP; calendar grid later. | 2026-10-01 |
-| Reports | READY | Needs staging E2E once infrastructure is healthy. | P1 | Yes | Verify async report queue/poll/history/export. | 2026-10-01 |
-| Exports | READY | None known in code audit. | - | Yes | Verify JSON/CSV download in browser. | 2026-10-01 |
-| Notifications | READY | Needs E2E confirmation for single report notification. | P1 | Yes | Verify notification after report completion. | 2026-10-01 |
-| Competitor MVP | PARTIAL | Qualitative comparison text is not sourced from real analysis. | P2 | Yes | Keep competitor records; defer sophisticated comparison. | 2026-10-01 |
-| Trend engine | NOT_REQUIRED_FOR_MVP | Advanced deterministic engine not implemented. | P3 | No | Defer advanced trend prediction. | 2026-10-01 |
-| Error handling | PARTIAL | Browser failure-path sweep pending. | P2 | Yes | Test provider/job/auth/input failures after staging recovery. | 2026-10-01 |
-| Responsive UX | PARTIAL | Not browser-verified in this pass. | P2 | Yes | Check desktop/tablet/mobile in final MVP E2E. | 2026-10-01 |
-| Observability | PARTIAL | No paid monitoring integration; staging unhealthy. | P2 | Yes | Use health endpoints/job logs; add lightweight alerts later. | 2026-10-01 |
-| Database backup | NOT_REQUIRED_FOR_MVP | Fresh Neon staging intentionally does not import Railway data. | - | No | Railway historical recovery remains separate. | 2026-10-01 |
-| Deployment | BLOCKED | Provider credentials/access unavailable in this environment. | P0 | Yes | Create Neon Free, Upstash Free, Render Free, then update Vercel API URL. | 2026-10-01 |
-| Staging E2E | BLOCKED | Fresh Track B providers are not provisioned yet. | P0 | Yes | Run full MVP browser/API journey after provider setup. | 2026-10-01 |
+| Authentication | READY | None known for core journey. | - | Yes | Browser E2E passed on deployed staging. | 2026-10-11 |
+| Business onboarding | READY | None known for core journey. | - | Yes | Create/edit business profile verified on Vercel + Render + Neon. | 2026-10-11 |
+| AI content plan | READY | None known for core journey. | - | Yes | Groq seven-day generation through queue/polling verified. | 2026-10-11 |
+| Async jobs | READY | None known for core journey. | - | Yes | Upstash Redis and Celery concurrency 1 verified in Render web service. | 2026-10-11 |
+| Draft editing | READY | None known for core journey. | - | Yes | Draft edit/save/reload verified in deployed browser. | 2026-10-11 |
+| Calendar | PARTIAL | List view only. | P3 | Yes | MVP list view verified; calendar grid later. | 2026-10-11 |
+| Reports | READY | None known for core journey. | - | Yes | Async report queue/poll/history/export verified. | 2026-10-11 |
+| Exports | READY | None known for core journey. | - | Yes | JSON/CSV download verified in browser. | 2026-10-11 |
+| Notifications | READY | None known for core journey. | - | Yes | Report completion notification verified. | 2026-10-11 |
+| Competitor MVP | NOT_REQUIRED_FOR_MVP | Advanced competitor workflow is post-MVP. | P3 | No | Removed from primary navigation for MVP demo. | 2026-10-11 |
+| Trend engine | NOT_REQUIRED_FOR_MVP | Advanced deterministic engine not implemented. | P3 | No | Removed from primary navigation; defer advanced trend prediction. | 2026-10-11 |
+| Error handling | PARTIAL | Only representative browser failure states checked. | P2 | Yes | Continue broader failure-path sweep after demo release. | 2026-10-11 |
+| Responsive UX | PARTIAL | Manual polish remains. | P2 | Yes | Core pages usable; refine visual polish later. | 2026-10-11 |
+| Observability | PARTIAL | No paid monitoring integration. | P2 | Yes | Health endpoints/job logs are sufficient for demo; add alerts later. | 2026-10-11 |
+| Database backup | NOT_REQUIRED_FOR_MVP | Fresh Neon staging intentionally does not import Railway data. | - | No | Railway historical recovery remains separate. | 2026-10-11 |
+| Deployment | READY | Render Free idle sleep remains a known limitation. | P2 | Yes | Vercel -> Render Free -> Neon/Upstash/Groq staging is active. | 2026-10-11 |
+| Staging E2E | READY | None known for core journey. | - | Yes | Full deployed browser core journey passed; whole-app route completion remains 43.5%. | 2026-10-11 |
