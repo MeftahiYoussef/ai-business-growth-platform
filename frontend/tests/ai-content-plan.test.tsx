@@ -119,6 +119,47 @@ describe('weekly content plan studio', () => {
     expect(screen.getAllByText(/Plan item/i).length).toBe(7);
   });
 
+  it('does not show a recoverable queued state before asynchronous queue submission returns', async () => {
+    process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN = 'true';
+    let resolveQueue: (value: Awaited<ReturnType<typeof aiApi.queueWeeklyContentPlan>>) => void = () => {};
+    vi.spyOn(aiApi, 'queueWeeklyContentPlan').mockReturnValue(
+      new Promise((resolve) => {
+        resolveQueue = resolve;
+      })
+    );
+    vi.spyOn(aiApi, 'getContentPlanStatus').mockResolvedValue({
+      ...planResponse(),
+      generation_id: 'generation-async-1',
+      attempt_count: 1,
+      queued_at: '2026-08-03T00:00:00Z',
+      started_at: '2026-08-03T00:00:01Z',
+      completed_at: '2026-08-03T00:00:02Z',
+      failed_at: null,
+      error: null,
+      result_available: true
+    });
+    vi.spyOn(aiApi, 'generateStudioContent').mockResolvedValue({ success: true, data: {} as never });
+
+    renderStudio();
+    await userEvent.click(screen.getByRole('button', { name: /generate seven-day plan/i }));
+
+    expect(await screen.findByRole('button', { name: /submitting/i })).toBeDisabled();
+    expect(window.sessionStorage.getItem('activeContentPlanGenerationId')).toBeNull();
+    expect(screen.queryByRole('button', { name: /queued/i })).not.toBeInTheDocument();
+
+    resolveQueue({
+      success: true,
+      generation_id: 'generation-async-1',
+      task_id: 'task-1',
+      status: 'queued',
+      status_url: '/api/ai/content-plans/generation-async-1/status/',
+      data: {} as never
+    });
+
+    await waitFor(() => expect(window.sessionStorage.getItem('activeContentPlanGenerationId')).toBe('generation-async-1'));
+    await waitFor(() => expect(screen.getByText(/weekly strategy summary/i)).toBeInTheDocument());
+  });
+
   it('clears the loading state when asynchronous queue submission fails', async () => {
     process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN = 'true';
     vi.spyOn(aiApi, 'queueWeeklyContentPlan').mockRejectedValue(new Error('Queue unavailable'));

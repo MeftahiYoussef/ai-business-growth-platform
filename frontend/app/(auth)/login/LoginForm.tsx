@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { z } from 'zod';
 import { TextField } from '@/components/forms/TextField';
 import { Button } from '@/components/ui/Button';
@@ -17,12 +17,18 @@ const schema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState({ email: '', password: '' });
 
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hydrated) return;
     setError(null);
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
@@ -43,13 +49,14 @@ export function LoginForm() {
   }
 
   return (
-    <form className="form-stack" noValidate onSubmit={submit}>
+    <form className="form-stack" method="post" noValidate onSubmit={submit}>
       {error ? <div className="form-error">{error}</div> : null}
       <TextField
         label="Email"
         name="email"
         type="email"
         required
+        disabled={!hydrated || loading}
         value={values.email}
         onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, email: event.target.value }))}
       />
@@ -59,15 +66,16 @@ export function LoginForm() {
           name="password"
           type={showPassword ? 'text' : 'password'}
           required
+          disabled={!hydrated || loading}
           value={values.password}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, password: event.target.value }))}
         />
-        <button className="button button-secondary" type="button" onClick={() => setShowPassword((value) => !value)}>
+        <button className="button button-secondary" type="button" disabled={!hydrated || loading} onClick={() => setShowPassword((value) => !value)}>
           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           {showPassword ? 'Hide password' : 'Show password'}
         </button>
       </div>
-      <Button disabled={loading} type="submit">
+      <Button disabled={!hydrated || loading} type="submit">
         <LogIn size={18} />
         {loading ? 'Logging in...' : 'Login'}
       </Button>

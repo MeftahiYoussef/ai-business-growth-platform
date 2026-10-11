@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { z } from 'zod';
 import { TextField } from '@/components/forms/TextField';
 import { Button } from '@/components/ui/Button';
@@ -18,12 +18,18 @@ const schema = z.object({
 export function RegisterForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState({ fullName: '', email: '', password: '' });
 
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hydrated) return;
     setError(null);
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
@@ -42,18 +48,18 @@ export function RegisterForm() {
   }
 
   return (
-    <form className="form-stack" noValidate onSubmit={submit}>
+    <form className="form-stack" method="post" noValidate onSubmit={submit}>
       {error ? <div className="form-error">{error}</div> : null}
-      <TextField label="Full name" name="fullName" required value={values.fullName} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, fullName: event.target.value }))} />
-      <TextField label="Work email" name="email" type="email" required value={values.email} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, email: event.target.value }))} />
+      <TextField label="Full name" name="fullName" required disabled={!hydrated || loading} value={values.fullName} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, fullName: event.target.value }))} />
+      <TextField label="Work email" name="email" type="email" required disabled={!hydrated || loading} value={values.email} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, email: event.target.value }))} />
       <div style={{ display: 'grid', gap: 8 }}>
-        <TextField label="Password" name="password" type={showPassword ? 'text' : 'password'} required value={values.password} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, password: event.target.value }))} />
-        <button className="button button-secondary" type="button" onClick={() => setShowPassword((value) => !value)}>
+        <TextField label="Password" name="password" type={showPassword ? 'text' : 'password'} required disabled={!hydrated || loading} value={values.password} onChange={(event: ChangeEvent<HTMLInputElement>) => setValues((current) => ({ ...current, password: event.target.value }))} />
+        <button className="button button-secondary" type="button" disabled={!hydrated || loading} onClick={() => setShowPassword((value) => !value)}>
           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           {showPassword ? 'Hide password' : 'Show password'}
         </button>
       </div>
-      <Button disabled={loading} type="submit">
+      <Button disabled={!hydrated || loading} type="submit">
         <ArrowRight size={18} />
         {loading ? 'Creating...' : 'Continue to onboarding'}
       </Button>
