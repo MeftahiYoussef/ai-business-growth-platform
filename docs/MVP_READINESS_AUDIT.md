@@ -1,6 +1,6 @@
 # MVP Readiness Audit
 
-Date: 2026-10-01
+Date: 2026-10-11
 
 Scope: product readiness for the AI Business Growth & Trend Intelligence Platform. AI research is paused for this phase. Production AI remains Groq. The deterministic evidence-grounding contract is available as backend infrastructure but is not wired into current Groq responses.
 
@@ -27,18 +27,18 @@ Scope: product readiness for the AI Business Growth & Trend Intelligence Platfor
 
 | Step | Acceptance criteria | Current result |
 | --- | --- | --- |
-| Register/login | User can register, log in, receive a server-managed httpOnly token cookie, access protected pages, and log out. | READY locally by code path; staging E2E blocked by Railway state. |
-| Business setup | User can create and edit a business with name, industry, country/market, product/service, audience, brand voice, goals, preferred platforms, posting frequency, and competitors. | READY by code; staging E2E pending on fresh Track B deployment. |
-| AI Studio | User can submit a seven-day content-plan request and see queue/running/completed/failed state. | READY by backend/frontend code; needs staging E2E once infrastructure is healthy. |
+| Register/login | User can register, log in, receive a server-managed httpOnly token cookie, access protected pages, and log out. | READY in deployed browser after auth hydration fix. |
+| Business setup | User can create and edit a business with name, industry, country/market, product/service, audience, brand voice, goals, preferred platforms, posting frequency, and competitors. | READY in deployed browser. |
+| AI Studio | User can submit a seven-day content-plan request and see queue/running/completed/failed state. | READY in deployed browser after durable submitting-to-queued transition fix. |
 | Seven-day plan | Generated plan must pass the production content-plan validator: days 1-7, valid platforms/content types/objectives, review required. | READY by backend validation. |
 | Draft conversion | Selected days create drafts once; duplicate conversion is prevented by source generation/day uniqueness. | READY by backend constraint and service checks. |
-| Draft editing/workflow | User can create, update, request review, approve, and schedule drafts; publishing remains unimplemented. | READY by code after focused draft editor; staging E2E pending. |
+| Draft editing/workflow | User can create, update, request review, approve, and schedule drafts; publishing remains unimplemented. | READY in deployed browser after focused draft editor verification. |
 | Calendar | User can see draft title, platform, status, and schedule state. | PARTIAL: list view works; true calendar layout is post-MVP. |
-| Reports | Async business reports queue, poll, complete, create history, notify once, and export JSON/CSV. | READY by backend/frontend code; staging E2E blocked. |
-| Notifications | Report/workflow notifications are stored and readable. | READY by code; needs staging E2E. |
-| Competitors | User can create competitor records and compare stored values. | PARTIAL: records exist; comparison still contains placeholder qualitative fields. |
+| Reports | Async business reports queue, poll, complete, create history, notify once, and export JSON/CSV. | READY in deployed browser. |
+| Notifications | Report/workflow notifications are stored and readable. | READY in deployed browser for report completion. |
+| Competitors | User can create competitor records and compare stored values. | NOT_REQUIRED_FOR_MVP: route remains available but is removed from primary navigation for the MVP demo. |
 | Trends | Existing trend records and pages exist. | NOT_REQUIRED_FOR_MVP: advanced trend engine is post-MVP. |
-| Error UX | Provider, validation, auth, job failure, and report failure paths return safe messages. | PARTIAL: core safe messages exist; browser sweep still required. |
+| Error UX | Provider, validation, auth, job failure, and report failure paths return safe messages. | PARTIAL: core safe messages exist; broader browser failure-path sweep remains P2. |
 | Quotas | AI generation quotas exist by user/day and business/month. | READY by code; idempotent duplicate requests avoid extra queued jobs. |
 | Security config | Production settings force DEBUG=false, secure cookies, allowed hosts, CORS/CSRF, HTTPS headers. | READY by code; environment values must be verified during deployment recovery. |
 | Observability | Health endpoints, structured logs, job status fields, and Redis/database readiness exist. | PARTIAL: enough for MVP operations; no external monitoring provider configured. |
@@ -74,27 +74,29 @@ Track B replaces Railway for active staging:
 - Queue: Upstash Free Redis
 - AI: existing Groq provider
 
-Railway is archive/recovery-only. No Railway mutation is required for MVP readiness. Provider setup for Neon, Upstash, Render, and Vercel remains the active infrastructure blocker.
+Railway is archive/recovery-only. No Railway mutation is required for MVP readiness. The Track B staging stack is active for the MVP demo. Render Free may sleep after inactivity; true idle-sleep wake should continue to be monitored under real demo conditions.
 
 ## Launch Blockers
 
 ### P0
 
-- Fresh Track B staging providers are not provisioned/configured yet in this environment.
+- None known for the verified core MVP journey.
 
 ### P1
 
-- Browser E2E journey must be run after fresh Track B deployment: auth, onboarding/profile edit, content plan, draft conversion/edit, calendar, report, notification, export, logout/login persistence.
+- None known for the verified core MVP journey.
 
 ### P2
 
-- Competitor comparison qualitative text is placeholder-like and should be labeled or replaced with deterministic stored metrics.
+- Global logout is only available from Profile.
 - Error UX needs a systematic browser sweep for Groq unavailable/rate limit, Celery unavailable, Redis unavailable, expired auth, and failed jobs.
 - Observability is enough for MVP but lacks provider-level dashboards/alerts.
+- Render Free true idle-sleep wake still needs continued monitoring under real demo conditions.
 
 ### P3
 
 - True calendar grid layout.
+- Non-core partial routes remain available by URL but are removed from primary navigation for the MVP demo.
 - Advanced trend engine with EMA, slope, acceleration, lifecycle, strength, confidence, and forecasts.
 - Real social OAuth, scheduled publishing, billing, knowledge base, and social inbox.
 

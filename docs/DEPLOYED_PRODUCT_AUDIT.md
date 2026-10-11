@@ -46,16 +46,16 @@ REGISTER / LOGIN -> BUSINESS ONBOARDING -> DASHBOARD -> AI STUDIO -> ASYNC GROQ 
 | `/calendar/[id]` | From calendar | Yes | WORKING | Draft editor load, save, reload persistence. | Save feedback is toast-only. |
 | `/reports` | Yes | Yes | WORKING | Async report generation, history, notification, JSON and CSV exports. | Report generation latency depends on free-tier wake/queue. |
 | `/notifications` | Yes | Yes | WORKING | Report-ready notification visible. | No global logout button here. |
-| `/analytics` | Yes | Yes | PARTIAL | Empty/fresh state loads safely. | Real analytics integrations are not MVP-critical. |
-| `/competitors` | Yes | Yes | PARTIAL | Empty state loads safely. | Advanced competitor workflow is post-MVP. |
+| `/analytics` | No | Yes | PARTIAL | Empty/fresh state loads safely. | Removed from primary navigation for MVP demo; real analytics integrations are not MVP-critical. |
+| `/competitors` | No | Yes | PARTIAL | Empty state loads safely. | Removed from primary navigation for MVP demo; advanced competitor workflow is post-MVP. |
 | `/competitors/[id]` | No | Yes | NOT_REQUIRED_FOR_MVP | Not tested without competitor records. | Post-MVP unless competitor detail becomes core. |
-| `/trends` | Yes | Yes | NOT_REQUIRED_FOR_MVP | Empty state loads safely. | Trend Engine intentionally out of scope. |
-| `/generate` | Yes | Yes | PARTIAL | Page loads safely. | Secondary generator is not core MVP path. |
+| `/trends` | No | Yes | NOT_REQUIRED_FOR_MVP | Empty state loads safely. | Removed from primary navigation for MVP demo; Trend Engine intentionally out of scope. |
+| `/generate` | No | Yes | PARTIAL | Page loads safely. | Removed from primary navigation for MVP demo; secondary generator is not core MVP path. |
 | `/generator` | No | Yes | NOT_REQUIRED_FOR_MVP | Route exists but not primary navigation. | Should be consolidated or hidden later. |
-| `/strategy` | Yes | Yes | PARTIAL | Page loads safely. | Strategy generation not part of core acceptance. |
-| `/integrations` | Yes | Yes | PARTIAL | Empty state loads safely. | Real social integrations are post-MVP. |
-| `/team` | Yes | Yes | PARTIAL | Team page loads with account context. | Invite workflow not core-tested. |
-| `/analysis` | Yes | Yes | PARTIAL | Page loads safely. | Analysis generation not core MVP path. |
+| `/strategy` | No | Yes | PARTIAL | Page loads safely. | Removed from primary navigation for MVP demo; strategy generation not part of core acceptance. |
+| `/integrations` | No | Yes | PARTIAL | Empty state loads safely. | Removed from primary navigation for MVP demo; real social integrations are post-MVP. |
+| `/team` | No | Yes | PARTIAL | Team page loads with account context. | Removed from primary navigation for MVP demo; invite workflow not core-tested. |
+| `/analysis` | No | Yes | PARTIAL | Page loads safely. | Removed from primary navigation for MVP demo; analysis generation not core MVP path. |
 | `/settings` | No | Yes | PARTIAL | Redirects to `/profile`. | Redirect is acceptable, but route should be documented or removed later. |
 
 Totals:
@@ -95,7 +95,7 @@ P1: none known for the core MVP journey.
 
 P2:
 - Logout is only available from Profile, not globally.
-- Several navigation pages are functional empty/placeholder states rather than complete product workflows.
+- Several non-core pages are functional empty/placeholder states rather than complete product workflows; they are no longer exposed in primary navigation for the MVP demo.
 - Render Free cold starts and Vercel/Render auth latency remain noticeable.
 
 P3:
@@ -105,6 +105,8 @@ P3:
 
 ## Release Gate
 
-MVP READY for free staging/demo: YES, after the fixes in this branch are merged and the current deployed frontend build remains active.
+MVP READY for free staging/demo: YES after this fix set is merged, final main CI passes, and one clean-browser smoke test passes against deployed staging.
+
+This does not mean the entire application is complete. The verified core MVP journey is 100% working, while only 43.5% of all inventoried deployed routes are fully working.
 
 Do not tag a release from the earlier incorrect readiness conclusion without acknowledging this audit and fix set.
