@@ -80,7 +80,7 @@ export function ContentIdeasClient({ ideas, business }: { ideas: ContentIdea[]; 
           <div className="row-between" style={{ marginTop: 12 }}>
             <div className="action-row">
               <span className="chip">Estimated engagement {idea.engagementPotentialScore}</span>
-              <span className="chip">Context fit {idea.trendMatchScore}</span>
+              <span className="chip" title="Deterministic estimate from profile context and stored trend evidence when available.">Profile fit estimate {idea.trendMatchScore}</span>
               <span className="chip">{idea.status}</span>
             </div>
             <div className="action-row">

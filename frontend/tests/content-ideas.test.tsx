@@ -59,7 +59,7 @@ describe('content ideas client', () => {
   it('labels scores as estimates instead of factual analytics', () => {
     renderIdeas([idea()]);
     expect(screen.getByText(/estimated engagement 82/i)).toBeInTheDocument();
-    expect(screen.getByText(/context fit 74/i)).toBeInTheDocument();
+    expect(screen.getByText(/profile fit estimate 74/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Engagement 82$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Trend match 74$/i)).not.toBeInTheDocument();
   });

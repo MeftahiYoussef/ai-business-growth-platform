@@ -1,11 +1,16 @@
+import json
 import re
 import string
 from datetime import timedelta
 
 from django.utils import timezone
 
+from apps.ai.exceptions import AIValidationError
+from apps.ai.providers.factory import get_ai_provider
+
 FORMATS = ["Carousel", "Short video", "LinkedIn post", "Thread", "Case study"]
 MOMENTUM_LABELS = ["Emerging", "Peaking", "Fading"]
+CONTENT_IDEA_PROMPT_VERSION = "content_ideas_groq_v1"
 STOPWORDS = {
     "a",
     "and",
@@ -86,6 +91,188 @@ def validate_content_idea_batch(ideas, expected_count=None):
             raise ContentIdeaValidationError("Placeholder competitor hook detected")
 
     return ideas
+
+
+def content_idea_schema(count):
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "ideas": {
+                "type": "array",
+                "minItems": count,
+                "maxItems": count,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": "string", "minLength": 1, "maxLength": 180},
+                        "hook": {"type": "string", "minLength": 1, "maxLength": 360},
+                        "caption": {"type": "string", "minLength": 1, "maxLength": 1200},
+                        "cta": {"type": "string", "minLength": 1, "maxLength": 220},
+                        "hashtags": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 8,
+                            "items": {"type": "string", "minLength": 1, "maxLength": 80},
+                        },
+                        "format": {"type": "string", "enum": FORMATS},
+                    },
+                    "required": ["title", "hook", "caption", "cta", "hashtags", "format"],
+                },
+            }
+        },
+        "required": ["ideas"],
+    }
+
+
+def _business_context(business):
+    return {
+        "name": _context_value(getattr(business, "name", ""), "the business"),
+        "industry": _context_value(business.industry, "the market"),
+        "product_or_service": _context_value(business.product_or_service, "the offer"),
+        "target_audience": _context_value(business.target_audience, "the audience"),
+        "brand_voice": _context_value(business.brand_voice, "clear and helpful"),
+        "posting_frequency": _context_value(business.posting_frequency, "weekly"),
+        "goals": _clean_list(business.goals),
+        "preferred_platforms": _clean_list(business.preferred_platforms),
+        "known_competitors": _clean_list(getattr(business, "known_competitors", [])),
+    }
+
+
+def _trend_context(trends):
+    return [
+        {
+            "topic": trend.topic,
+            "momentum_label": trend.momentum_label,
+            "trend_score": trend.trend_score,
+            "growth_rate": trend.growth_rate,
+            "confidence": trend.confidence,
+        }
+        for trend in trends
+        if getattr(trend, "topic", "")
+    ]
+
+
+def build_content_idea_prompt(business, trends, count, offset=0, retry_feedback=""):
+    context = {
+        "business": _business_context(business),
+        "available_trends": _trend_context(trends),
+        "requested_count": count,
+        "generation_offset": offset,
+        "retry_feedback": retry_feedback,
+    }
+    system = (
+        "You generate content idea cards for a business marketing app. "
+        "Return JSON only. Generate distinct, useful ideas grounded in the supplied business context. "
+        "Do not output engagement scores, trend scores, analytics, provider metadata, or publication decisions. "
+        "Do not invent competitor performance, market metrics, or trend facts. "
+        "Only mention a trend when it appears in available_trends. "
+        "Every title must be unique, and ideas must not be CTA-only variations of each other."
+    )
+    user = (
+        "Create content ideas using this JSON context. "
+        "Use the business context heavily. If retry_feedback is present, correct those exact defects. "
+        f"{json.dumps(context, ensure_ascii=True, sort_keys=True)}"
+    )
+    return {"system": system, "user": user, "schema": content_idea_schema(count), "prompt_version": CONTENT_IDEA_PROMPT_VERSION}
+
+
+def _coerce_provider_idea(raw):
+    if not isinstance(raw, dict):
+        raise AIValidationError("AI provider returned an invalid content idea")
+    hashtags = raw.get("hashtags")
+    if not isinstance(hashtags, list):
+        hashtags = []
+    return {
+        "title": str(raw.get("title", "")).strip(),
+        "hook": str(raw.get("hook", "")).strip(),
+        "caption": str(raw.get("caption", "")).strip(),
+        "cta": str(raw.get("cta", "")).strip(),
+        "hashtags": [str(hashtag).strip() for hashtag in hashtags if str(hashtag).strip()],
+        "format": str(raw.get("format", "")).strip(),
+    }
+
+
+def _estimate_content_idea_scores(business, trends, idea, index):
+    richness = _profile_richness(business)
+    searchable = normalize_idea_text(" ".join([
+        idea.get("title", ""),
+        idea.get("hook", ""),
+        idea.get("caption", ""),
+        idea.get("cta", ""),
+        " ".join(idea.get("hashtags", [])),
+    ]))
+    context_terms = [
+        business.industry,
+        business.product_or_service,
+        business.target_audience,
+        business.brand_voice,
+        *(_clean_list(business.goals)),
+        *(_clean_list(business.preferred_platforms)),
+    ]
+    context_hits = sum(1 for term in context_terms if term and normalize_idea_text(str(term)) in searchable)
+    trend_hits = sum(1 for trend in trends if normalize_idea_text(getattr(trend, "topic", "")) in searchable)
+    hashtag_count = min(4, len(idea.get("hashtags", [])))
+    format_bonus = min(6, index * 2)
+    engagement_estimate = min(95, 50 + richness * 3 + context_hits * 2 + hashtag_count * 2 + format_bonus)
+    if trend_hits and trends:
+        trend_score = max(float(getattr(trend, "trend_score", 0) or 0) for trend in trends if normalize_idea_text(getattr(trend, "topic", "")) in searchable)
+        profile_fit_estimate = min(95, round(trend_score))
+    else:
+        profile_fit_estimate = min(95, 48 + richness * 4 + context_hits * 3)
+    return round(engagement_estimate), round(profile_fit_estimate)
+
+
+def _hydrate_content_ideas(business, trends, provider_ideas):
+    ideas = []
+    for index, raw_idea in enumerate(provider_ideas):
+        idea = _coerce_provider_idea(raw_idea)
+        engagement_score, profile_fit_score = _estimate_content_idea_scores(business, trends, idea, index)
+        trend_basis = "stored trend evidence" if any(
+            normalize_idea_text(getattr(trend, "topic", "")) in normalize_idea_text(idea["title"] + " " + idea["caption"])
+            for trend in trends
+        ) else "business profile context"
+        ideas.append({
+            "business": business,
+            **idea,
+            "engagement_potential_score": engagement_score,
+            "trend_match_score": profile_fit_score,
+            "reason": (
+                "Generated by Groq; scores are deterministic estimates from "
+                f"profile richness, context matches, hashtags, format, and {trend_basis}."
+            ),
+            "status": "draft",
+        })
+    validate_content_idea_batch(ideas, expected_count=len(provider_ideas))
+    return ideas
+
+
+def generate_content_ideas_with_provider(business, trends, count=10, offset=0):
+    provider = get_ai_provider()
+    retry_feedback = ""
+    last_error: Exception | None = None
+    for _attempt in range(2):
+        prompt = build_content_idea_prompt(business, trends, count, offset=offset, retry_feedback=retry_feedback)
+        result = provider.generate_structured_json(
+            system=prompt["system"],
+            user=prompt["user"],
+            schema=prompt["schema"],
+            prompt_version=prompt["prompt_version"],
+        )
+        if not isinstance(result.parsed_data, dict):
+            raise AIValidationError("AI provider did not return an object")
+        raw_ideas = result.parsed_data.get("ideas")
+        if not isinstance(raw_ideas, list):
+            raise AIValidationError("AI provider did not return content ideas")
+        try:
+            ideas = _hydrate_content_ideas(business, trends, raw_ideas)
+            validate_content_idea_batch(ideas, expected_count=count)
+            return ideas
+        except ContentIdeaValidationError as exc:
+            last_error = exc
+            retry_feedback = str(exc)
+    raise ContentIdeaValidationError(str(last_error or "Content idea validation failed"))
 
 
 def generate_competitor_posts(competitor, count=6):
