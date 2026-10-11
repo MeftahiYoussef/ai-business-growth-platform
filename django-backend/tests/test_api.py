@@ -841,7 +841,8 @@ class ApiFlowTests(TestCase):
         self.assertEqual(first["reasoning_effort"], "medium")
         self.assertEqual(second["reasoning_effort"], "low")
         self.assertEqual(second["temperature"], 0.2)
-        self.assertIn("Return exactly seven items", second["messages"][1]["content"])
+        self.assertIn("Follow the supplied JSON Schema exactly", second["messages"][1]["content"])
+        self.assertNotIn("Return exactly seven items", second["messages"][1]["content"])
 
     @override_settings(GROQ_API_KEY="test-key")
     def test_groq_provider_maps_errors_and_invalid_output(self):
