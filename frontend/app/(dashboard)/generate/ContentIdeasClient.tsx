@@ -26,15 +26,42 @@ export function ContentIdeasClient({ ideas, business }: { ideas: ContentIdea[]; 
   }
 
   async function save(id: string) {
-    await saveContentIdea(id);
-    showToast('Idea saved');
-    router.refresh();
+    try {
+      await saveContentIdea(id);
+      showToast('Idea saved');
+      router.refresh();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not save idea', 'error');
+    }
   }
 
   async function remove(id: string) {
-    await deleteContentIdea(id);
-    showToast('Idea removed');
-    router.refresh();
+    if (!window.confirm('Delete this content idea?')) return;
+    try {
+      await deleteContentIdea(id);
+      showToast('Idea removed');
+      router.refresh();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not delete idea', 'error');
+    }
+  }
+
+  async function copyIdea(idea: ContentIdea) {
+    const value = [
+      idea.hook,
+      '',
+      idea.caption,
+      '',
+      `CTA: ${idea.cta}`,
+      '',
+      idea.hashtags.join(' ')
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast('Idea copied');
+    } catch {
+      showToast('Could not copy idea', 'error');
+    }
   }
 
   return (
@@ -52,13 +79,13 @@ export function ContentIdeasClient({ ideas, business }: { ideas: ContentIdea[]; 
           </div>
           <div className="row-between" style={{ marginTop: 12 }}>
             <div className="action-row">
-              <span className="chip">Engagement {idea.engagementPotentialScore}</span>
-              <span className="chip">Trend match {idea.trendMatchScore}</span>
+              <span className="chip">Estimated engagement {idea.engagementPotentialScore}</span>
+              <span className="chip">Context fit {idea.trendMatchScore}</span>
               <span className="chip">{idea.status}</span>
             </div>
             <div className="action-row">
-              <button aria-label="Copy idea" onClick={() => navigator.clipboard.writeText(`${idea.hook}\n\n${idea.caption}\n\n${idea.cta}`)}><Copy size={18} /></button>
-              <button aria-label="Save idea" onClick={() => save(idea._id)}><BookmarkPlus size={18} /></button>
+              <button aria-label="Copy idea" onClick={() => copyIdea(idea)}><Copy size={18} /></button>
+              <button aria-label="Save idea" disabled={idea.status === 'saved'} onClick={() => save(idea._id)}><BookmarkPlus size={18} /></button>
               <button aria-label="Delete idea" onClick={() => remove(idea._id)}><Trash2 size={18} /></button>
             </div>
           </div>

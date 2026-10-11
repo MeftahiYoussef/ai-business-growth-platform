@@ -1,9 +1,9 @@
 from rest_framework import status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.ai.services import generate_content_ideas
+from apps.ai.services import ContentIdeaValidationError, generate_content_ideas
 from apps.trends.models import Trend
 from common.utilities.access import get_owned_business
 from common.utilities.ids import id_filter
@@ -11,6 +11,12 @@ from common.utilities.query import apply_search_sort
 
 from .models import ContentIdea
 from .serializers import ContentIdeaSerializer
+
+
+class ContentIdeaGenerationError(APIException):
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "Could not generate a diverse content idea batch. Please try again."
+    default_code = "content_idea_generation_failed"
 
 
 class ContentIdeasView(APIView):
@@ -39,7 +45,17 @@ class GenerateContentIdeasView(APIView):
         count = int(request.data.get("count") or 10)
         count = max(1, min(count, 25))
         trends = list(Trend.objects.filter(business=business).order_by("-created_at")[:5])
-        ideas = [ContentIdea.objects.create(**item) for item in generate_content_ideas(business, trends, count)]
+        existing_count = ContentIdea.objects.filter(business=business).count()
+        generated = None
+        for offset in (existing_count, existing_count + 1):
+            try:
+                generated = generate_content_ideas(business, trends, count, offset=offset)
+                break
+            except ContentIdeaValidationError:
+                generated = None
+        if generated is None:
+            raise ContentIdeaGenerationError()
+        ideas = [ContentIdea.objects.create(**item) for item in generated]
         return Response({"success": True, "data": ContentIdeaSerializer(ideas, many=True).data}, status=status.HTTP_201_CREATED)
 
 
