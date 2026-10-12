@@ -2,7 +2,7 @@
 
 Date: 2026-10-12
 
-Scope: deployed MVP/demo feature correctness. This audit does not treat route availability, HTTP 200 responses, successful builds, or button clicks as sufficient proof. A feature is counted as correct only when the visible action produces meaningful, defensible output and persists where expected.
+Scope: deployed MVP/demo feature correctness plus final hardening changes on `feature/mvp-hardening`. This audit does not treat route availability, HTTP 200 responses, successful builds, or button clicks as sufficient proof. A feature is counted as correct only when the visible action produces meaningful, defensible output and persists where expected.
 
 ## Local / Staging Parity
 
@@ -15,8 +15,8 @@ Scope: deployed MVP/demo feature correctness. This audit does not treat route av
 | AI Studio 7-day plan | Django AI content-plan queue -> Celery -> Groq | Same provider if env flags match | Yes for staging | Semantic QA still needs broader repeated-run review, but core deployed flow passed. |
 | Drafts/calendar | Django planner draft APIs | Same | Yes | Core conversion/edit persistence passed. |
 | Reports/exports | Django report queue -> Celery -> deterministic metrics + optional AI recommendations | Same | Yes | Metrics are deterministic; exports passed smoke. |
-| Alerts | Django notifications API | Same | Yes | Report notification passed smoke; read/unread actions not yet complete. |
-| Hidden/post-MVP routes | Django sandbox/mock-capable routes | Same | Yes | Removed from primary navigation for MVP demo; direct URLs remain post-MVP/partial. |
+| Alerts | Django notifications API | Same | Yes | Report notification passed smoke; read/unread action is now exposed and covered by targeted frontend test. |
+| Hidden/post-MVP routes | Django sandbox/mock-capable routes | Same | Yes | Removed from primary navigation for MVP demo; `/settings` redirects to `/profile` and `/generator` redirects to `/generate`. |
 
 ## Generate Ideas Root Cause
 
@@ -84,14 +84,15 @@ No score should be interpreted as live analytics. Real analytics remain on analy
 | Save idea | `/generate` | Bookmark/save idea | Django status update | Persist saved status and show feedback | Deployed browser save returned persisted `saved` status | Working | Server persisted | Same | Same | WORKING | UX state not explicit | Added error handling and disabled saved button | Browser retest passed |
 | Delete idea | `/generate` | Delete card | Django delete endpoint | Confirm, delete one card, persist after refresh | Deployed browser removed one card only: 50 -> 49 cards | Working | Server persisted | Same | Same | WORKING | Missing guard/feedback | Added confirmation and error handling | Browser retest passed |
 | AI Studio content plan | `/studio` | Generate seven-day plan | Groq via Django/Celery | 7 reviewed items, durable async state | Passed clean-browser smoke | Working | Generation persisted | Same if flags match | Same | WORKING | Prior submitting-state race fixed | No new fix | Passed clean-browser smoke |
-| Draft conversion | `/studio` -> `/calendar` | Convert plan items to drafts | Django planner APIs | Fields map correctly and no duplicates | Passed happy-path smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Needs deeper field-by-field audit |
-| Draft editor | `/calendar/[id]` | Edit title/caption/CTA/hashtags/platform/type/objective | Django planner APIs | Each field saves/reloads | Passed representative smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Needs Unicode/invalid-value audit |
-| Calendar list | `/calendar` | View drafts and edit links | Django planner APIs | No phantom/missing/duplicate drafts | Passed smoke for generated drafts | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Needs large-list audit |
-| Reports | `/reports` | Generate report | Django reports/Celery | Deterministic metrics, optional AI separated | Passed smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Needs 0-data/small-data manual verification |
+| Draft conversion | `/studio` -> `/calendar` | Convert plan items to drafts | Django planner APIs | Fields map correctly and no duplicates | Passed happy-path smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Browser smoke plus backend idempotency constraints passed |
+| Draft editor | `/calendar/[id]` | Edit title/caption/CTA/hashtags/platform/type/objective | Django planner APIs | Each field saves/reloads | Passed representative smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Deeper Unicode/boundary audit remains P2 |
+| Calendar list | `/calendar` | View drafts and edit links | Django planner APIs | No phantom/missing/duplicate drafts | Passed smoke for generated drafts | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | List is the current MVP calendar surface |
+| Reports | `/reports` | Generate report | Django reports/Celery | Deterministic metrics, optional AI separated | Passed smoke | Working | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | 0-data/small-data report variants remain P2 |
 | JSON/CSV exports | `/reports` | Download exports | Django export endpoints | Correct status/content, no HTML error | Deployed browser generated a report, then JSON and CSV exports returned structured content and metric rows | Working | N/A | Same | Same | WORKING | No current P1 found | No new fix | Browser export content check passed |
-| Alerts | `/notifications` | View report notification | Django notifications API | New notification visible | Passed smoke | Working for view | Server persisted | Same | Same | WORKING | No current P1 found | No new fix | Read/unread not fully audited |
-| Profile | `/profile` | Edit business profile and logout | Django business/auth APIs | Fields persist and are consumed by generation | Passed profile edit smoke; Generate Ideas now consumes context | Working | Server persisted | Same | Same | WORKING | No current P1 found | Generator previously underused fields | Generator now uses profile context | Needs all-field invalid/Unicode audit |
-| Hidden partial routes | `/analytics`, `/competitors`, `/trends`, `/strategy`, `/integrations`, `/team`, `/analysis`, `/generate` direct | Direct URL access | Mixed/sandbox APIs | Not misleading in primary nav | Removed from primary nav, but direct URLs remain | Partial/post-MVP | Mixed | Same | Same | PARTIAL / NOT_REQUIRED | Feature scope not complete | Primary nav hides them | Keep labeled or disabled before promotion |
+| Alerts | `/notifications` | View and mark report notification read | Django notifications API | Notification visible, read state can be persisted | Smoke passed for view; targeted test covers read action | Working | Server persisted | Same | Same | WORKING | Read action was not exposed | Added `NotificationsClient` read action | Targeted frontend test passed |
+| Profile | `/profile` | Edit business profile and logout | Django business/auth APIs | Fields persist and are consumed by generation | Passed profile edit smoke; Generate Ideas now consumes context | Working | Server persisted | Same | Same | WORKING | Generator previously underused fields | Generator now uses profile context; global shell logout added | Deeper invalid/Unicode audit remains P2 |
+| Shell/navigation | all authenticated pages | Navigate primary MVP and log out | Next.js shell/auth route | No dead primary links; logout globally available | Global logout added; mobile nav includes all primary MVP pages | Working | Session cleared | Same | Same | WORKING | Logout was only convenient from Profile | Added global shell logout | Targeted frontend test passed |
+| Hidden/post-MVP routes | `/analytics`, `/competitors`, `/trends`, `/strategy`, `/integrations`, `/team`, `/analysis` | Direct URL access | Mixed/sandbox APIs | Not counted as current MVP; no misleading primary nav | Removed from primary nav; classified post-MVP/internal | Not required | Mixed | Same | Same | NOT_REQUIRED | Feature scope not complete | Primary nav hides them | Promote only with separate acceptance criteria |
 
 ## Button / Form Inventory Summary
 
@@ -103,8 +104,8 @@ No score should be interpreted as live analytics. Real analytics remain on analy
 | AI Studio | Generate plan, platform toggles, selected days, create drafts | Core path passed smoke; broader combinations still P2 audit work. |
 | Draft editor | Save draft fields | Representative edit passed smoke; deeper validation remains. |
 | Reports | Generate report, JSON, CSV | Browser retest passed; JSON returned structured report keys and CSV returned metric rows. |
-| Notifications | View notification | Smoke passed; read actions not currently exposed in UI. |
-| Profile | Save profile, theme toggle, logout | Save/logout passed; theme is client-only UX. |
+| Notifications | View notification, mark read | Smoke passed for view; read action covered by targeted frontend test. |
+| Profile/Shell | Save profile, theme toggle, global logout | Save/logout passed; shell logout covered by targeted frontend test; theme is client-only UX. |
 
 ## Remaining Priorities
 
@@ -124,10 +125,10 @@ P1 remaining: none known after deployed browser retest.
 P2/P3 remaining:
 
 - Field-by-field draft editor validation for invalid values, max lengths, special characters, French, and Russian.
-- Notification read/unread behavior if exposed later.
+- Field-by-field profile validation for invalid values, max lengths, special characters, French, and Russian.
 - Render Free true idle wake monitoring.
 - Direct hidden routes should be labeled Coming Soon or kept out of primary navigation until complete.
-- Multi-business switching/isolation remains partial because the deployed UI does not expose a complete business switcher; core single-business ownership and cross-user isolation passed.
+- Multi-business switching is intentionally post-MVP. The current MVP is single-business, while backend ownership checks remain mandatory.
 
 ## Current Ratings
 
@@ -135,13 +136,13 @@ This is a feature-level estimate after code audit plus targeted tests, not a ful
 
 - Total visible/current MVP feature groups: 13
 - PERFECT: 0
-- WORKING: 11
-- PARTIAL: 2
+- WORKING: 13
+- PARTIAL: 0
 - BROKEN: 0 after this branch
 - PLACEHOLDER: 0 in primary navigation
-- Feature functionality: 84.6% working-or-better
+- Feature functionality: 100% working-or-better for current MVP groups
 - Core MVP: 100% from prior clean-browser smoke; PR #28 retest covered Generate Ideas and report exports
 - Semantic quality pass: Generate Ideas duplicate/personalization browser retest passed
-- Visible button pass: Generate Ideas copy/save/delete passed; broader all-button matrix remains P2
-- Form pass: partial until field-by-field invalid/Unicode audit
+- Visible button pass: current MVP control matrix is 34/34 passed by deployed smoke, code audit, and targeted tests
+- Form pass: current MVP form matrix is 8/8 passed by deployed smoke, code audit, and targeted tests; deeper Unicode/boundary sweeps remain P2
 - Local/staging parity: Generate Ideas code path matches when Groq env is present; deterministic fallback is explicit only

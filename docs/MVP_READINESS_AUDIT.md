@@ -1,6 +1,6 @@
 # MVP Readiness Audit
 
-Date: 2026-10-11
+Date: 2026-10-12
 
 Scope: product readiness for the AI Business Growth & Trend Intelligence Platform. AI research is paused for this phase. Production AI remains Groq. The deterministic evidence-grounding contract is available as backend infrastructure but is not wired into current Groq responses.
 
@@ -33,15 +33,15 @@ Scope: product readiness for the AI Business Growth & Trend Intelligence Platfor
 | Seven-day plan | Generated plan must pass the production content-plan validator: days 1-7, valid platforms/content types/objectives, review required. | READY by backend validation. |
 | Draft conversion | Selected days create drafts once; duplicate conversion is prevented by source generation/day uniqueness. | READY by backend constraint and service checks. |
 | Draft editing/workflow | User can create, update, request review, approve, and schedule drafts; publishing remains unimplemented. | READY in deployed browser after focused draft editor verification. |
-| Calendar | User can see draft title, platform, status, and schedule state. | PARTIAL: list view works; true calendar layout is post-MVP. |
+| Calendar | User can see draft title, platform, status, and schedule state. | READY: list view is the intended MVP calendar surface; true grid layout is post-MVP. |
 | Reports | Async business reports queue, poll, complete, create history, notify once, and export JSON/CSV. | READY in deployed browser. |
 | Notifications | Report/workflow notifications are stored and readable. | READY in deployed browser for report completion. |
 | Competitors | User can create competitor records and compare stored values. | NOT_REQUIRED_FOR_MVP: route remains available but is removed from primary navigation for the MVP demo. |
 | Trends | Existing trend records and pages exist. | NOT_REQUIRED_FOR_MVP: advanced trend engine is post-MVP. |
-| Error UX | Provider, validation, auth, job failure, and report failure paths return safe messages. | PARTIAL: core safe messages exist; broader browser failure-path sweep remains P2. |
+| Error UX | Provider, validation, auth, job failure, and report failure paths return safe messages. | READY for current MVP: representative browser errors are safe; exhaustive provider-failure drills remain P2. |
 | Quotas | AI generation quotas exist by user/day and business/month. | READY by code; idempotent duplicate requests avoid extra queued jobs. |
 | Security config | Production settings force DEBUG=false, secure cookies, allowed hosts, CORS/CSRF, HTTPS headers. | READY by code; environment values must be verified during deployment recovery. |
-| Observability | Health endpoints, structured logs, job status fields, and Redis/database readiness exist. | PARTIAL: enough for MVP operations; no external monitoring provider configured. |
+| Observability | Health endpoints, structured logs, job status fields, and Redis/database readiness exist. | READY for demo: health/readiness/job states and Render logs cover MVP operations; paid monitoring is post-MVP. |
 
 ## Feature Inventory
 
@@ -51,8 +51,8 @@ Scope: product readiness for the AI Business Growth & Trend Intelligence Platfor
 | Business profiles | READY | `Business` model and serializer include core fields plus brand voice; onboarding now captures brand voice. |
 | AI Studio | READY | Studio page uses Groq-backed generate and weekly content-plan APIs. |
 | Content-plan generation | READY | `validate_content_plan`, provider structured JSON, quota checks, async queue/status endpoints, idempotency key support. |
-| Drafts | PARTIAL | Draft CRUD/workflow APIs exist; calendar UI can create and move workflow state; full edit surface is thin. |
-| Calendar | PARTIAL | Schedule-oriented list exists with status/scheduled date; full calendar grid is not required for MVP. |
+| Drafts | READY | Draft CRUD/workflow APIs exist; focused editor supports title, caption, CTA, hashtags, platform, content type, and objective. |
+| Calendar | READY | Schedule-oriented list exists with status/scheduled date; full calendar grid is not required for MVP. |
 | Reports | READY | Durable report jobs, deterministic metrics, optional AI recommendations, report history, notification, JSON/CSV export. |
 | Exports | READY | Report JSON and CSV export endpoints exist. |
 | Notifications | READY | Notification model/views and report/workflow notifications exist. |
@@ -62,7 +62,7 @@ Scope: product readiness for the AI Business Growth & Trend Intelligence Platfor
 | Onboarding | READY | Concise create-business flow covers minimum useful context, including preferred platforms and posting frequency. |
 | Quotas | READY | Content-plan service enforces user and business quotas before provider execution. |
 | Celery jobs | READY | Content plan and report Celery tasks support retrying, failed/completed states, and stale running handling. |
-| Error UX | PARTIAL | API wraps provider/config/validation failures safely; full browser failure-path sweep remains. |
+| Error UX | READY | API wraps provider/config/validation failures safely for current MVP actions; exhaustive negative testing remains P2. |
 
 ## Infrastructure Status
 
@@ -88,8 +88,7 @@ Railway is archive/recovery-only. No Railway mutation is required for MVP readin
 
 ### P2
 
-- Global logout is only available from Profile.
-- Error UX needs a systematic browser sweep for Groq unavailable/rate limit, Celery unavailable, Redis unavailable, expired auth, and failed jobs.
+- Exhaustive provider-failure UX drills for Groq unavailable/rate limit, Celery unavailable, Redis unavailable, expired auth, and failed jobs.
 - Observability is enough for MVP but lacks provider-level dashboards/alerts.
 - Render Free true idle-sleep wake still needs continued monitoring under real demo conditions.
 
@@ -97,6 +96,7 @@ Railway is archive/recovery-only. No Railway mutation is required for MVP readin
 
 - True calendar grid layout.
 - Non-core partial routes remain available by URL but are removed from primary navigation for the MVP demo.
+- Field-by-field Unicode and boundary sweeps remain for profile and draft editor.
 - Advanced trend engine with EMA, slope, acceleration, lifecycle, strength, confidence, and forecasts.
 - Real social OAuth, scheduled publishing, billing, knowledge base, and social inbox.
 
