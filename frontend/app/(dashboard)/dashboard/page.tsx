@@ -19,15 +19,15 @@ export default async function DashboardPage() {
         <div className="hero-card">
           <div>
             <h1>Good morning, {business.data?.name || 'Nova Studio'}</h1>
-            <p>Today: turn competitor signals into one teardown post and one carousel.</p>
+            <p>Today: create a reviewed content plan, turn it into drafts, and keep reports current.</p>
           </div>
           <AutoGraphIcon />
         </div>
       </AppCard>
       <div className="grid-responsive">
-        <MetricCard label="Business score" value="86" note="+8 this week" kind="business" />
-        <MetricCard label="Trend score" value="92" note="Peaking" kind="trend" />
-        <MetricCard label="Competitors tracked" value={String(competitors.pagination.total)} note="Backend synced" kind="competitors" />
+        <MetricCard label="Profile completeness" value={`${profileCompleteness(business.data)}%`} note="Business context fields" kind="business" />
+        <MetricCard label="Trend records" value={String(trends.pagination.total)} note="Stored signals" kind="trend" />
+        <MetricCard label="Competitors tracked" value={String(competitors.pagination.total)} note="Stored records" kind="competitors" />
         <MetricCard label="Generated ideas" value={String(ideas.pagination.total)} note="Saved in API" kind="ideas" />
       </div>
       <section>
@@ -44,9 +44,9 @@ export default async function DashboardPage() {
         </div>
       </section>
       <section>
-        <SectionTitle title="Top competitor posts" />
+        <SectionTitle title="Competitor records" />
         <div className="page-stack compact">
-          {competitors.items.length === 0 ? <AppCard>No competitors yet. Add one from the Competitors page.</AppCard> : competitors.items.map((competitor) => (
+          {competitors.items.length === 0 ? <AppCard>No competitor records yet. Competitor intelligence is post-MVP.</AppCard> : competitors.items.map((competitor) => (
             <Link className="list-row" href={`/competitors/${competitor._id}`} key={competitor._id}>
               <span className="avatar">📣</span>
               <span><strong>{competitor.name}</strong><small>{competitor.platform}</small></span>
@@ -58,9 +58,9 @@ export default async function DashboardPage() {
       <section>
         <SectionTitle title="Quick actions" />
         <div className="action-row">
-          <Link className="button button-primary" href="/generate">Generate ideas</Link>
-          <Link className="button button-secondary" href="/trends">Review trends</Link>
-          <Link className="button button-secondary" href="/strategy">Strategy</Link>
+          <Link className="button button-primary" href="/studio">Open AI Studio</Link>
+          <Link className="button button-secondary" href="/calendar">Review drafts</Link>
+          <Link className="button button-secondary" href="/reports">Generate report</Link>
         </div>
       </section>
     </div>
@@ -69,4 +69,20 @@ export default async function DashboardPage() {
 
 function empty<T>(): PaginatedResponse<T> {
   return { success: true, items: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } };
+}
+
+function profileCompleteness(business: Business | null) {
+  if (!business) return 0;
+  const fields = [
+    business.name,
+    business.industry,
+    business.country,
+    business.productOrService,
+    business.targetAudience,
+    business.brandVoice,
+    business.postingFrequency || '',
+    business.goals.length ? business.goals.join(',') : '',
+    business.preferredPlatforms?.length ? business.preferredPlatforms.join(',') : ''
+  ];
+  return Math.round((fields.filter((field) => field.trim().length > 0).length / fields.length) * 100);
 }

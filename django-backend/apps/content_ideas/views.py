@@ -1,9 +1,17 @@
+from django.conf import settings
 from rest_framework import status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.ai.services import generate_content_ideas
+from apps.ai.exceptions import (
+    AIConfigurationError,
+    AIProviderError,
+    AIRateLimitError,
+    AITimeoutError,
+    AIValidationError,
+)
+from apps.ai.services import ContentIdeaValidationError, generate_content_ideas, generate_content_ideas_with_provider
 from apps.trends.models import Trend
 from common.utilities.access import get_owned_business
 from common.utilities.ids import id_filter
@@ -11,6 +19,26 @@ from common.utilities.query import apply_search_sort
 
 from .models import ContentIdea
 from .serializers import ContentIdeaSerializer
+
+
+class ContentIdeaGenerationError(APIException):
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "Could not generate a diverse content idea batch. Please try again."
+    default_code = "content_idea_generation_failed"
+
+
+def _content_idea_ai_error_response(exc):
+    if isinstance(exc, AIRateLimitError):
+        return Response({"success": False, "message": str(exc)}, status=429)
+    if isinstance(exc, AITimeoutError):
+        return Response({"success": False, "message": str(exc)}, status=504)
+    if isinstance(exc, AIConfigurationError):
+        return Response({"success": False, "message": "AI provider is not configured"}, status=500)
+    if isinstance(exc, AIValidationError):
+        return Response({"success": False, "message": "AI provider returned invalid content"}, status=502)
+    if isinstance(exc, AIProviderError):
+        return Response({"success": False, "message": "AI provider request failed"}, status=502)
+    raise exc
 
 
 class ContentIdeasView(APIView):
@@ -39,7 +67,18 @@ class GenerateContentIdeasView(APIView):
         count = int(request.data.get("count") or 10)
         count = max(1, min(count, 25))
         trends = list(Trend.objects.filter(business=business).order_by("-created_at")[:5])
-        ideas = [ContentIdea.objects.create(**item) for item in generate_content_ideas(business, trends, count)]
+        existing_count = ContentIdea.objects.filter(business=business).count()
+        try:
+            generated = generate_content_ideas_with_provider(business, trends, count, offset=existing_count)
+        except ContentIdeaValidationError:
+            if not settings.CONTENT_IDEAS_DETERMINISTIC_FALLBACK_ENABLED:
+                raise ContentIdeaGenerationError()
+            generated = generate_content_ideas(business, trends, count, offset=existing_count)
+        except (AIConfigurationError, AIProviderError, AIRateLimitError, AITimeoutError, AIValidationError) as exc:
+            if not settings.CONTENT_IDEAS_DETERMINISTIC_FALLBACK_ENABLED:
+                return _content_idea_ai_error_response(exc)
+            generated = generate_content_ideas(business, trends, count, offset=existing_count)
+        ideas = [ContentIdea.objects.create(**item) for item in generated]
         return Response({"success": True, "data": ContentIdeaSerializer(ideas, many=True).data}, status=status.HTTP_201_CREATED)
 
 

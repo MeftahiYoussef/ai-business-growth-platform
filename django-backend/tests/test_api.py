@@ -33,6 +33,7 @@ from apps.ai.models import AIContentGeneration
 from apps.ai.providers.base import AIProviderResult
 from apps.ai.providers.factory import get_ai_provider
 from apps.ai.providers.groq_provider import GroqProvider
+from apps.ai.services import generate_content_ideas
 from apps.ai.tasks import generate_content_plan_task
 from apps.ai.validators import validate_content_plan
 from apps.businesses.models import Business
@@ -155,7 +156,9 @@ class ApiFlowTests(TestCase):
 
         trends = self.client.post("/api/trends/analyze", {"businessId": business["_id"]}, format="json")
         self.assertEqual(trends.status_code, 201, trends.content)
-        ideas = self.client.post("/api/content-ideas/generate", {"businessId": business["_id"], "count": 2}, format="json")
+        owned_business = Business.objects.get(id=business["_id"])
+        with patch("apps.content_ideas.views.generate_content_ideas_with_provider", return_value=generate_content_ideas(owned_business, [], count=2)):
+            ideas = self.client.post("/api/content-ideas/generate", {"businessId": business["_id"], "count": 2}, format="json")
         self.assertEqual(ideas.status_code, 201, ideas.content)
         strategy = self.client.post("/api/strategy/generate", {"businessId": business["_id"]}, format="json")
         self.assertEqual(strategy.status_code, 201, strategy.content)
@@ -838,7 +841,8 @@ class ApiFlowTests(TestCase):
         self.assertEqual(first["reasoning_effort"], "medium")
         self.assertEqual(second["reasoning_effort"], "low")
         self.assertEqual(second["temperature"], 0.2)
-        self.assertIn("Return exactly seven items", second["messages"][1]["content"])
+        self.assertIn("Follow the supplied JSON Schema exactly", second["messages"][1]["content"])
+        self.assertNotIn("Return exactly seven items", second["messages"][1]["content"])
 
     @override_settings(GROQ_API_KEY="test-key")
     def test_groq_provider_maps_errors_and_invalid_output(self):

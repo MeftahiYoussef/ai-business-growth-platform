@@ -167,8 +167,9 @@ class GroqProvider(BaseAIProvider):
                         {
                             "role": "user",
                             "content": (
-                                f"{user}\n\nReturn exactly seven items in the items array. "
-                                "Use day_number values 1, 2, 3, 4, 5, 6 and 7 exactly once."
+                                f"{user}\n\nRegenerate JSON for the same request. "
+                                "Follow the supplied JSON Schema exactly, including array item counts, enum values, "
+                                "required fields, const values, and additionalProperties=false."
                             ),
                         },
                     ]
