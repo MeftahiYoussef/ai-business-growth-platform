@@ -285,6 +285,12 @@ class ApiFlowTests(TestCase):
         notifications = self.client.get("/api/notifications/")
         self.assertEqual(notifications.status_code, 200)
         self.assertGreaterEqual(len(notifications.data["data"]), 1)
+        notification_id = notifications.data["data"][0]["_id"]
+        slashless_read = self.client.post(f"/api/notifications/{notification_id}/read", {}, format="json")
+        self.assertEqual(slashless_read.status_code, 200, slashless_read.content)
+        slash_read = self.client.post(f"/api/notifications/{notification_id}/read/", {}, format="json")
+        self.assertEqual(slash_read.status_code, 200, slash_read.content)
+        self.assertIsNotNone(slash_read.data["data"]["readAt"])
 
     def test_viewer_cannot_approve_content(self):
         self.register("owner2@example.com")
