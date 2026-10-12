@@ -113,7 +113,7 @@
     border-top: 1px solid var(--line);
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     left: 0;
     min-height: 72px;
     position: fixed;
@@ -123,6 +123,8 @@
 
   .bottom-link {
     align-items: center;
+    background: transparent;
+    border: 0;
     color: var(--muted);
     display: flex;
     flex-direction: column;

@@ -5,9 +5,9 @@
 | Done | Provision fresh free staging | Render, Neon, Upstash, existing Vercel | Provider account access | One Render Free web service uses Neon Free PostgreSQL, Upstash Free Redis, Groq, and existing Vercel frontend. |
 | Done | Run fresh staging MVP E2E | Vercel/Render/Neon/Upstash | Fresh free staging provisioned | Auth, business, async Groq plan, Celery, drafts, edit, report, export, relogin, and persistence pass. |
 | P2 | Complete provider-native Git autodeploy evidence | Render/Vercel dashboards | Provider Git connection verification | Prove Vercel and Render deploy the exact `main` merge commit after CI without provider deployment tokens. |
-| P2 | Improve global logout UX | Frontend shell/profile | Verified MVP demo | Add a consistent logout affordance outside Profile without changing auth semantics. |
+| Done | Improve global logout UX | Frontend shell/profile | Verified MVP demo | Authenticated shell exposes a logout action without changing auth semantics. |
 | P2 | Monitor Render Free idle wake | Render/Vercel staging | Verified MVP demo | Confirm true idle-sleep wake starts both Gunicorn and Celery under real demo conditions. |
-| P3 | Clean up non-core route exposure | Frontend nav/routes | Verified MVP demo | Keep partial/post-MVP routes hidden from primary navigation or clearly labeled until complete. |
+| Done | Clean up non-core route exposure | Frontend nav/routes | Verified MVP demo | Partial/post-MVP routes are hidden from primary navigation; `/settings` redirects to Profile and `/generator` redirects to Generate Ideas. |
 | Done | Add focused draft edit screen | frontend calendar/planner pages | Existing draft update API | Users can edit and save title, caption, CTA, hashtags, platform, content type, and objective from generated drafts. |
 | Done | Add business profile edit flow | profile/settings pages | Existing business update API | Users can update business context after onboarding without recreating the business. |
 | P1 | Real OAuth providers | `apps/integrations/providers` | Platform credentials | OAuth connect/revoke/refresh for Instagram/Facebook/LinkedIn. |
