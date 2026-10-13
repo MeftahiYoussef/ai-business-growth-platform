@@ -46,6 +46,7 @@ export function StudioClient({ business, generations }: { business: Business | n
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [editedItems, setEditedItems] = useState<Record<string, Partial<ContentPlanItem>>>({});
   const [loadingPlan, setLoadingPlan] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [activePlanGenerationId, setActivePlanGenerationId] = useState<string | null>(null);
   const [planJobStatus, setPlanJobStatus] = useState<string | null>(null);
   const [creatingDrafts, setCreatingDrafts] = useState(false);
@@ -82,11 +83,11 @@ export function StudioClient({ business, generations }: { business: Business | n
           router.refresh();
           return;
         }
-        if (status.status === 'failed' || status.status === 'cancelled') {
+        if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'completed') {
           window.sessionStorage.removeItem(activePlanStorageKey);
           setActivePlanGenerationId(null);
           setLoadingPlan(false);
-          showToast(status.error?.message || 'Content plan generation failed', 'error');
+          setPlanError(status.error?.message || 'The plan could not be generated. Please try again.');
           return;
         }
         timeoutId = setTimeout(poll, 3000);
@@ -95,7 +96,7 @@ export function StudioClient({ business, generations }: { business: Business | n
         window.sessionStorage.removeItem(activePlanStorageKey);
         setActivePlanGenerationId(null);
         setLoadingPlan(false);
-        showToast(error instanceof Error ? error.message : 'Could not check generation status', 'error');
+        setPlanError(error instanceof Error ? error.message : 'Could not check generation status');
       }
     }
 
@@ -131,6 +132,7 @@ export function StudioClient({ business, generations }: { business: Business | n
 
   async function generatePlan() {
     if (!business) return;
+    setPlanError(null);
     if (platforms.length === 0) {
       showToast('Select at least one platform', 'error');
       return;
@@ -169,7 +171,7 @@ export function StudioClient({ business, generations }: { business: Business | n
       showToast('Seven-day content plan generated');
       router.refresh();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Content plan generation failed', 'error');
+      setPlanError(error instanceof Error ? error.message : 'Content plan generation failed');
     } finally {
       if (!asyncContentPlanEnabled() || !queuedAsync) setLoadingPlan(false);
     }
@@ -210,6 +212,7 @@ export function StudioClient({ business, generations }: { business: Business | n
             ))}
           </div>
           <label className="field"><span>Additional instructions</span><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={1200} /></label>
+          {planError ? <p role="alert">{planError}</p> : null}
           <Button onClick={generatePlan} disabled={!business || loadingPlan}>
             <Sparkles size={18} /> {loadingPlan ? (planJobStatus === 'submitting' ? 'Submitting...' : planJobStatus === 'retrying' ? 'Retrying...' : planJobStatus === 'queued' ? 'Queued...' : 'Generating...') : 'Generate seven-day plan'}
           </Button>

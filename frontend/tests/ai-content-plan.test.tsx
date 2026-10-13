@@ -170,6 +170,24 @@ describe('weekly content plan studio', () => {
     expect(screen.getByRole('button', { name: /generate seven-day plan/i })).not.toBeDisabled();
   });
 
+  it.each(['failed', 'completed'] as const)('keeps %s jobs without a plan visible and allows another generation', async (status) => {
+    process.env.NEXT_PUBLIC_AI_ASYNC_CONTENT_PLAN = 'true';
+    window.sessionStorage.setItem('activeContentPlanGenerationId', 'failed-plan');
+    vi.spyOn(aiApi, 'getContentPlanStatus').mockResolvedValue({
+      success: true, generation_id: 'failed-plan', status, attempt_count: 1,
+      created_at: '2026-08-03T00:00:00Z', queued_at: null, started_at: null,
+      completed_at: null, failed_at: '2026-08-03T00:00:01Z', result_available: false,
+      error: status === 'failed' ? { code: 'AIValidationError', message: 'Content plan generation failed' } : null
+    });
+    vi.spyOn(aiApi, 'queueWeeklyContentPlan').mockRejectedValue(new Error('Queue unavailable'));
+    renderStudio();
+    expect(await screen.findByRole('alert')).toHaveTextContent(status === 'failed' ? 'Content plan generation failed' : 'The plan could not be generated. Please try again.');
+    expect(window.sessionStorage.getItem('activeContentPlanGenerationId')).toBeNull();
+    expect(screen.getByRole('button', { name: /generate seven-day plan/i })).not.toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /generate seven-day plan/i }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Queue unavailable'));
+  });
+
   it('shows validation and API errors', async () => {
     vi.spyOn(aiApi, 'generateWeeklyContentPlan').mockRejectedValue(new Error('Provider unavailable'));
     renderStudio();

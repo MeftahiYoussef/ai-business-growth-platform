@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Status: **not ready to tag yet**. The release branch is in hardening and documentation. A v1.0.0 tag requires this branch to merge, final main CI to pass, main to deploy, and a final clean-browser journey to pass.
+Status: **not ready to tag yet**. The release branch and route-loading hotfixes have merged. The final browser journey exposed intermittent AI Studio output validation failures. The validation recovery hotfix must merge, final main CI must pass, main must deploy, and a final clean-browser journey must pass.
 
 ## Scope
 
@@ -103,6 +103,15 @@ AI quality issue found:
 
 - One plan title included an unsupported metric claim: `40% Faster Sales Cycle`.
 - Release branch now rejects unsupported quantitative performance claims in generated plan text fields.
+
+## Final Browser Gate Findings
+
+- Root route loading boundary removed in PR #33 after deployed authenticated pages stayed on `Loading...`.
+- Studio job `55c6e4d6-aad8-4d9e-9498-f46c3b6b8bcb` returned `failed`, `AIValidationError`, and `result_available=false`. A successful Celery task exit did not mean a successful AI generation.
+- A fresh deployed Studio run rendered seven items, confirming that the failure was intermittent invalid provider output.
+- Validation recovery regenerates once from the original business context. Both responses pass the same validation; rejected output is never saved as a usable plan. Successful usage includes tokens from both responses.
+- Studio failures remain visible beside the generation button. Terminal jobs without a usable plan stop polling and allow retry.
+- Release tagging remains blocked until the final deployed clean-browser journey passes.
 
 ## Provider And Quota Notes
 

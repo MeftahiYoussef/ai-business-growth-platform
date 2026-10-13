@@ -954,12 +954,38 @@ class ApiFlowTests(TestCase):
         self.assertEqual(failed.data["message"], "AI provider request failed")
         self.assertNotIn("raw groq", str(failed.data))
 
+    def test_invalid_content_plan_is_regenerated_once_before_persisting(self):
+        self.register("plan-regeneration@example.com")
+        business = self.create_business()
+        invalid = valid_content_plan()
+        invalid["items"][0]["title"] = "40% Faster Sales Cycle"
+        provider = fake_groq_provider()
+        provider.generate_structured_json.side_effect = [
+            AIProviderResult(content="", parsed_data=plan, provider="groq", model=provider.model,
+                             input_tokens=10, output_tokens=20, request_id="regenerated", finish_reason="stop")
+            for plan in (invalid, valid_content_plan())
+        ]
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=provider):
+            response = self.client.post(
+                "/api/ai/content-plans/generate/",
+                {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(provider.generate_structured_json.call_count, 2)
+        record = AIContentGeneration.objects.get(id=response.data["id"])
+        self.assertEqual(record.structured_output, valid_content_plan())
+        self.assertEqual(record.generation_parameters["validation_attempts"], 2)
+        self.assertEqual(record.usage, {"input_tokens": 20, "output_tokens": 40, "total_tokens": 60})
+        self.assertEqual(record.versions.count(), 1)
+        self.assertIn("Avoid all quantitative performance claims", provider.generate_structured_json.call_args.kwargs["system"])
+
     def test_schema_invalid_groq_plan_is_sanitized(self):
         self.register("groq-invalid-schema@example.com")
         business = self.create_business()
         bad_plan = valid_content_plan()
         bad_plan["items"][0]["platform"] = "invalid"
-        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=fake_groq_provider(AIProviderResult(
+        provider = fake_groq_provider(AIProviderResult(
             content="",
             parsed_data=bad_plan,
             provider="groq",
@@ -968,12 +994,17 @@ class ApiFlowTests(TestCase):
             output_tokens=1,
             request_id="bad-schema",
             finish_reason="stop",
-        ))):
+        ))
+        with patch("apps.ai.content_plan_service.get_ai_provider", return_value=provider):
             response = self.client.post(
                 "/api/ai/content-plans/generate/",
                 {"business_id": business["_id"], "platforms": ["linkedin"], "start_date": "2026-08-03"},
                 format="json",
             )
+        self.assertEqual(provider.generate_structured_json.call_count, 2)
+        record = AIContentGeneration.objects.get(business_id=business["_id"])
+        self.assertEqual(record.status, AIContentGeneration.Status.FAILED)
+        self.assertFalse(record.structured_output)
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.data["message"], "AI provider returned invalid content")
 
