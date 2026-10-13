@@ -16,6 +16,12 @@ SUPPORTED_OBJECTIVES = ALLOWED_OBJECTIVES
 
 UNSUPPORTED_METRIC_PATTERNS = [
     re.compile(
+        r"\b(?:grew|grow|gained|gain|reached|reach|acquired|acquire|increased|increase|boosted|boost)\b.{0,80}"
+        r"(?:\b[\d,]+(?:\.\d+)?\s+(?:users|customers|subscribers|followers|leads|sales|views)\b|"
+        r"\b(?:user base|users|customers|subscribers|followers|leads|sales|views)\b.{0,40}\b(?:from|to|by)\s+[\d,]+)",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"\b(?:increase|grow|boost|improve|double|triple|scale|lift)\b.{0,40}\b(?:engagement|revenue|followers|views|likes|comments|shares|sales|leads|conversions)\b.{0,40}(?:\b\d+(?:\.\d+)?\s?%|\$[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?\s?x\b|\b\d+\s+days\b)",
         re.IGNORECASE,
     ),

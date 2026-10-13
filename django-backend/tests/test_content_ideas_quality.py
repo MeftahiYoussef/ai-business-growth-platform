@@ -106,6 +106,34 @@ class ContentIdeaQualityTests(TestCase):
                 idea(title="Buyer checklist", caption="Use the same buyer checklist.", cta="Comment for the template."),
             ])
 
+    def test_fabricated_performance_claims_are_rejected_in_every_copy_field(self):
+        claims = [
+            "Case study: Meet Maya, a SaaS founder who grew her user base from 0 to 10,000 in 12 months.",
+            "We gained 10,000 users in 12 months.",
+            "40% faster sales cycle",
+            "Double your followers with our playbook.",
+        ]
+        for field in ("title", "hook", "caption", "cta"):
+            for claim in claims:
+                with self.subTest(field=field, claim=claim), self.assertRaises(ContentIdeaValidationError):
+                    validate_content_idea_batch([idea(**{field: claim})])
+        self.assertEqual(len(validate_content_idea_batch([idea(title="5 tips for your launch", caption="Follow a 7-day launch checklist.")])), 1)
+
+    def test_provider_regenerates_fabricated_claims_without_persisting_them(self):
+        good = provider_payload(count=1)
+        bad = provider_payload(count=1)
+        bad["ideas"][0]["caption"] = "Maya grew her user base from 0 to 10,000 in 12 months."
+        provider = fake_provider(good)
+        provider.generate_structured_json.side_effect = [
+            AIProviderResult(content="{}", parsed_data=bad, provider="groq", model=provider.model),
+            provider.generate_structured_json.return_value,
+        ]
+        with patch("apps.ai.services.get_ai_provider", return_value=provider):
+            generated = generate_content_ideas_with_provider(business(), [], count=1)
+        self.assertEqual(provider.generate_structured_json.call_count, 2)
+        self.assertEqual(generated[0]["caption"], good["ideas"][0]["caption"])
+        self.assertIn("Unsupported quantitative performance claim", provider.generate_structured_json.call_args.kwargs["user"])
+
     def test_unique_batch_is_accepted(self):
         batch = [
             idea(title="AI launch checklist", caption="Explain the launch planning decision."),

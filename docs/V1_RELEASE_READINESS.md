@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Status: **not ready to tag yet**. The release branch and route-loading hotfixes have merged. The final browser journey exposed intermittent AI Studio output validation failures. The validation recovery hotfix must merge, final main CI must pass, main must deploy, and a final clean-browser journey must pass.
+Final release status and deployed acceptance evidence are recorded in the [v1.0.0 release](https://github.com/MeftahiYoussef/ai-business-growth-platform/releases/tag/v1.0.0). Publish that release only after final main CI, deployment verification, and a clean-browser journey pass. The findings below retain the pre-release history, including failed gate attempts.
 
 ## Scope
 
@@ -109,8 +109,9 @@ AI quality issue found:
 - Root route loading boundary removed in PR #33 after deployed authenticated pages stayed on `Loading...`.
 - Studio job `55c6e4d6-aad8-4d9e-9498-f46c3b6b8bcb` returned `failed`, `AIValidationError`, and `result_available=false`. A successful Celery task exit did not mean a successful AI generation.
 - A fresh deployed Studio run rendered seven items, confirming that the failure was intermittent invalid provider output.
-- Validation recovery regenerates once from the original business context. Both responses pass the same validation; rejected output is never saved as a usable plan. Successful usage includes tokens from both responses.
+- Validation recovery regenerates once from the original business context. Both responses are checked against the same validation; rejected output is never saved as a usable plan. Successful usage includes tokens from both responses.
 - Studio failures remain visible beside the generation button. Terminal jobs without a usable plan stop polling and allow retry.
+- The next browser run hit a safe provider error on idea batch three after Groq 429 and repeated schema-rejection responses. It also exposed fabricated customer-growth copy in an accepted batch. Idea generation now rejects known quantitative performance claims and regenerates once using its existing validation retry; its prompt explicitly prohibits invented customers, testimonials, and case-study results.
 - Release tagging remains blocked until the final deployed clean-browser journey passes.
 
 ## Provider And Quota Notes
@@ -207,4 +208,4 @@ v1.0.0 requires:
 - main CI passed
 - deployed main commit verified
 
-Current status: **not ready to tag until this release branch is merged, deployed, and clean-browser verified.**
+Final gate outcome: see the [v1.0.0 release evidence](https://github.com/MeftahiYoussef/ai-business-growth-platform/releases/tag/v1.0.0). A failed browser run or incomplete main CI blocks publication.
