@@ -97,7 +97,7 @@ Railway is archive/recovery-only. No Railway mutation is required for MVP readin
 - True calendar grid layout.
 - Non-core partial routes remain available by URL but are removed from primary navigation for the MVP demo.
 - Field-by-field Unicode and boundary sweeps remain for profile and draft editor.
-- Backup restore procedure is documented but restore testing remains P1 before v1.0.0 tagging.
+- Backup restore procedure is documented and the v1.0.0 restore drill passed on 2026-10-13 using PostgreSQL 16 tooling, a custom-format dump, and a temporary local restore target.
 - Advanced trend engine with EMA, slope, acceleration, lifecycle, strength, confidence, and forecasts.
 - Real social OAuth, scheduled publishing, billing, knowledge base, and social inbox.
 

@@ -18,6 +18,6 @@ Verified date: 2026-10-13
 | Error handling | READY | Representative user-safe errors are covered; exhaustive provider-failure drill remains P2. | P2 | Yes | Core MVP actions return safe browser errors rather than tracebacks/secrets. | 2026-10-12 |
 | Responsive UX | READY | Core pages are usable across desktop/tablet/mobile; visual polish remains P3. | P3 | Yes | Mobile shell exposes primary MVP nav plus logout. | 2026-10-12 |
 | Observability | READY | No paid monitoring integration. | P2 | Yes | Health endpoints, readiness, job states, Render logs, and browser-visible job state are sufficient for demo; v1 operations guide added. | 2026-10-13 |
-| Database backup | REQUIRED_FOR_V1 | Procedure documented; restore drill not fully tested in this workspace because `pg_dump`/`pg_restore` and a safe restore target were unavailable. | P1 | Yes for v1 | Complete logical dump/restore drill before tagging v1.0.0. | 2026-10-13 |
+| Database backup | READY | Procedure documented; PostgreSQL 16 custom dump restored into a temporary local PostgreSQL 16 target with matching safe aggregate counts. | None | Yes for v1 | Keep dump files outside Git and repeat before destructive database operations. | 2026-10-13 |
 | Deployment | READY | Render Free idle sleep remains a known limitation. | P2 | Yes | Vercel -> Render Free -> Neon/Upstash/Groq staging is active. | 2026-10-11 |
 | Staging E2E | READY | None known for current MVP feature groups. | - | Yes | Core deployed browser journey passed; current MVP feature groups are 13/13 working after hardening. | 2026-10-12 |

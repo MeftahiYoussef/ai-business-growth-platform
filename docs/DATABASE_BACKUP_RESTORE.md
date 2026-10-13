@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Status: procedure documented; restore test is **NOT_FULLY_TESTED** in this workspace because no local Neon connection string or PostgreSQL client tools were available.
+Status: procedure documented; v1.0.0 release restore drill **PASS** on 2026-10-13.
 
 Never commit database dumps or credentials.
 
@@ -74,15 +74,36 @@ Compare counts with the source database. Use aggregate counts only; do not expor
 
 On 2026-10-13:
 
-- Local Neon connection file: absent.
-- `pg_dump`: unavailable in the execution environment.
-- `pg_restore`: unavailable in the execution environment.
-- Restore test: NOT_FULLY_TESTED.
+- PostgreSQL client tooling: PostgreSQL 16.15 from the official `postgres:16` Docker image.
+- Source database: active Neon staging PostgreSQL 16.
+- Backup command: custom-format `pg_dump --format=custom --no-owner --no-acl`.
+- Backup timestamp UTC: `20261013T095808Z`.
+- Backup size: `412005` bytes.
+- Backup SHA-256: `3aea2440eb360e396353666dd08322625ca7e8fd6e32284e88d5e5ded3d47565`.
+- Restore target: temporary local PostgreSQL 16 container.
+- Restore test: PASS.
+- Temporary restore database: destroyed after verification.
 
-Required before v1.0.0 tag:
+Safe aggregate verification:
 
-- install/use PostgreSQL client tools in a secure environment
-- run a staging logical dump
-- validate manifest contains expected tables
-- restore into a safe temporary database or inspect dump structure
-- compare safe aggregate counts
+| Table/group | Source | Restored |
+| --- | ---: | ---: |
+| `django_migrations` | 56 | 56 |
+| users | 45 | 45 |
+| businesses | 36 | 36 |
+| content ideas | 464 | 464 |
+| AI generations | 21 | 21 |
+| background jobs | 8 | 8 |
+| drafts | 56 | 56 |
+| reports | 8 | 8 |
+| notifications | 8 | 8 |
+
+Additional checks:
+
+- Expected tables found: 9/9.
+- Orphan drafts: 0.
+- Orphan AI generations: 0.
+- Orphan reports: 0.
+- Orphan notifications: 0.
+
+The dump file remains outside Git. Do not commit dumps, copied database contents, or connection strings.
