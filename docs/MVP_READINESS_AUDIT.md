@@ -1,6 +1,6 @@
 # MVP Readiness Audit
 
-Date: 2026-10-12
+Date: 2026-10-13
 
 Scope: product readiness for the AI Business Growth & Trend Intelligence Platform. AI research is paused for this phase. Production AI remains Groq. The deterministic evidence-grounding contract is available as backend infrastructure but is not wired into current Groq responses.
 
@@ -39,9 +39,9 @@ Scope: product readiness for the AI Business Growth & Trend Intelligence Platfor
 | Competitors | User can create competitor records and compare stored values. | NOT_REQUIRED_FOR_MVP: route remains available but is removed from primary navigation for the MVP demo. |
 | Trends | Existing trend records and pages exist. | NOT_REQUIRED_FOR_MVP: advanced trend engine is post-MVP. |
 | Error UX | Provider, validation, auth, job failure, and report failure paths return safe messages. | READY for current MVP: representative browser errors are safe; exhaustive provider-failure drills remain P2. |
-| Quotas | AI generation quotas exist by user/day and business/month. | READY by code; idempotent duplicate requests avoid extra queued jobs. |
+| Quotas | AI generation quotas exist by user/day and business/month; Generate Ideas has a business/day item cap. | READY by code; idempotent duplicate requests avoid extra queued jobs, and Generate Ideas now has app-level cost protection before unbounded provider usage. |
 | Security config | Production settings force DEBUG=false, secure cookies, allowed hosts, CORS/CSRF, HTTPS headers. | READY by code; environment values must be verified during deployment recovery. |
-| Observability | Health endpoints, structured logs, job status fields, and Redis/database readiness exist. | READY for demo: health/readiness/job states and Render logs cover MVP operations; paid monitoring is post-MVP. |
+| Observability | Health endpoints, structured logs, job status fields, and Redis/database readiness exist. | READY for demo: health/readiness/job states and Render logs cover MVP operations; v1 operations doc added; paid monitoring is post-MVP. |
 
 ## Feature Inventory
 
@@ -97,6 +97,7 @@ Railway is archive/recovery-only. No Railway mutation is required for MVP readin
 - True calendar grid layout.
 - Non-core partial routes remain available by URL but are removed from primary navigation for the MVP demo.
 - Field-by-field Unicode and boundary sweeps remain for profile and draft editor.
+- Backup restore procedure is documented but restore testing remains P1 before v1.0.0 tagging.
 - Advanced trend engine with EMA, slope, acceleration, lifecycle, strength, confidence, and forecasts.
 - Real social OAuth, scheduled publishing, billing, knowledge base, and social inbox.
 

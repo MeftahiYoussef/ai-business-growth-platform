@@ -1,6 +1,7 @@
 from django.conf import settings
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import APIException, NotFound
+from rest_framework.exceptions import APIException, NotFound, Throttled
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -61,11 +62,19 @@ class ContentIdeasView(APIView):
         return paginator.get_paginated_response(ContentIdeaSerializer(page, many=True).data)
 
 
+def _check_content_idea_limits(*, business, requested_count):
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_count = ContentIdea.objects.filter(business=business, created_at__gte=today_start).count()
+    if today_count + requested_count > settings.CONTENT_IDEAS_MAX_BUSINESS_DAILY_ITEMS:
+        raise Throttled(detail="Daily content idea generation quota exceeded")
+
+
 class GenerateContentIdeasView(APIView):
     def post(self, request):
         business = get_owned_business(request.user, request.data.get("businessId"))
         count = int(request.data.get("count") or 10)
         count = max(1, min(count, 25))
+        _check_content_idea_limits(business=business, requested_count=count)
         trends = list(Trend.objects.filter(business=business).order_by("-created_at")[:5])
         existing_count = ContentIdea.objects.filter(business=business).count()
         try:

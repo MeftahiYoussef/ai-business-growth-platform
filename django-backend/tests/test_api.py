@@ -420,6 +420,16 @@ class ApiFlowTests(TestCase):
         with self.assertRaises(ValidationError):
             validate_content_plan(no_review_plan)
 
+    def test_content_plan_validation_rejects_unsupported_quantitative_claims(self):
+        unsupported_metric_plan = valid_content_plan()
+        unsupported_metric_plan["items"][0]["title"] = "Case study: 40% faster sales cycle"
+        with self.assertRaises(ValidationError):
+            validate_content_plan(unsupported_metric_plan)
+
+        safe_numbered_plan = valid_content_plan()
+        safe_numbered_plan["items"][0]["title"] = "5 planning questions for founders"
+        self.assertEqual(validate_content_plan(safe_numbered_plan)["items"][0]["title"], "5 planning questions for founders")
+
     def test_content_plan_cross_business_and_unauthenticated_access(self):
         self.register("plan-owner@example.com")
         business = self.create_business()

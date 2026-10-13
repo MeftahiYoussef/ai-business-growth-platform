@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from rest_framework import serializers
@@ -12,6 +13,12 @@ from apps.ai.contracts.content_plan import (
 SUPPORTED_PLATFORMS = ALLOWED_PLATFORMS
 SUPPORTED_CONTENT_TYPES = ALLOWED_CONTENT_TYPES
 SUPPORTED_OBJECTIVES = ALLOWED_OBJECTIVES
+
+UNSUPPORTED_METRIC_PATTERN = re.compile(
+    r"(\b\d+(?:\.\d+)?\s?%|\b\d+(?:\.\d+)?\s?x\b|\$[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?\s*(?:percent|followers|views|likes|comments|shares|revenue|sales|leads|conversions)\b|\b\d+(?:\.\d+)?\s*(?:faster|higher|more|increase|growth)\b)",
+    re.IGNORECASE,
+)
+METRIC_TEXT_FIELDS = ("title", "topic", "hook", "caption", "call_to_action", "visual_brief")
 
 
 class ContentPlanItemSerializer(serializers.Serializer):
@@ -35,6 +42,15 @@ class ContentPlanItemSerializer(serializers.Serializer):
         if value is not True:
             raise serializers.ValidationError("Generated content must require human review")
         return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        for field in METRIC_TEXT_FIELDS:
+            value = str(attrs.get(field, "") or "")
+            if UNSUPPORTED_METRIC_PATTERN.search(value):
+                raise serializers.ValidationError({
+                    field: "Unsupported quantitative performance claims are not allowed in generated content plans"
+                })
+        return attrs
 
 
 class ContentPlanSerializer(serializers.Serializer):

@@ -1,6 +1,6 @@
 # Full Feature Acceptance Audit
 
-Date: 2026-10-12
+Date: 2026-10-13
 
 Scope: deployed MVP/demo feature correctness plus final hardening changes on `feature/mvp-hardening`. This audit does not treat route availability, HTTP 200 responses, successful builds, or button clicks as sufficient proof. A feature is counted as correct only when the visible action produces meaningful, defensible output and persists where expected.
 
@@ -16,7 +16,7 @@ Scope: deployed MVP/demo feature correctness plus final hardening changes on `fe
 | Drafts/calendar | Django planner draft APIs | Same | Yes | Core conversion/edit persistence passed. |
 | Reports/exports | Django report queue -> Celery -> deterministic metrics + optional AI recommendations | Same | Yes | Metrics are deterministic; exports passed smoke. |
 | Alerts | Django notifications API | Same | Yes | Report notification passed smoke; read/unread action is now exposed and covered by targeted frontend test. |
-| Hidden/post-MVP routes | Django sandbox/mock-capable routes | Same | Yes | Removed from primary navigation for MVP demo; `/settings` redirects to `/profile` and `/generator` redirects to `/generate`. |
+| Hidden/post-MVP routes | Django sandbox/sample-capable routes | Same | Yes | Removed from primary navigation for MVP demo; `/settings` redirects to `/profile`, `/generator` redirects to `/generate`, Strategy no longer renders fabricated fallback data, and Competitor sample posts are labeled post-MVP. |
 
 ## Generate Ideas Root Cause
 
@@ -41,6 +41,7 @@ After this branch:
 - The Groq path makes one bounded provider retry if validation fails.
 - If validation still fails, the API returns a safe 502 generation error and does not persist/display bad cards.
 - Scores are deterministic estimates added after Groq generation; the UI labels them as `Estimated engagement` and `Profile fit estimate`.
+- Repeated v1 readiness sampling completed 16 Groq-backed batches before a provider 502 stopped the burst run: 160 ideas, zero duplicate normalized titles, zero near-duplicate pairs, zero fallback use, and two recovered provider 429s.
 
 ## Generate Ideas Diversity Results
 
@@ -129,6 +130,7 @@ P2/P3 remaining:
 - Render Free true idle wake monitoring.
 - Direct hidden routes should be labeled Coming Soon or kept out of primary navigation until complete.
 - Multi-business switching is intentionally post-MVP. The current MVP is single-business, while backend ownership checks remain mandatory.
+- v1 repeated AI Studio sampling found one unsupported quantitative claim in a generated title; the release branch now rejects unsupported quantitative performance claims in content-plan validation.
 
 ## Current Ratings
 

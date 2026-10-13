@@ -62,6 +62,8 @@ services:
         value: "4000"
       - key: AI_MAX_ADDITIONAL_INSTRUCTIONS_LENGTH
         value: "1200"
+      - key: CONTENT_IDEAS_MAX_BUSINESS_DAILY_ITEMS
+        value: "200"
       - key: SECURE_SSL_REDIRECT
         value: "true"
       - key: SECURE_HSTS_SECONDS

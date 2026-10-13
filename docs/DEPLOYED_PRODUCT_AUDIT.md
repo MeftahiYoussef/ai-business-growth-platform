@@ -39,7 +39,7 @@ REGISTER / LOGIN -> BUSINESS ONBOARDING -> DASHBOARD -> AI STUDIO -> ASYNC GROQ 
 | `/register` | Public link | No | WORKING | Registration from clean browser. | Free-tier latency can be noticeable. |
 | `/forgot-password` | Login link | No | NOT_REQUIRED_FOR_MVP | Page route exists. | Password reset flow not in MVP acceptance. |
 | `/onboarding` | Redirect target | Yes | WORKING | Ten-step business creation, save, dashboard redirect. | Multi-step flow is basic but functional. |
-| `/dashboard` | Yes | Yes | WORKING | Fresh account, populated account, quick links render. | Some dashboard cards are placeholder-style metrics. |
+| `/dashboard` | Yes | Yes | WORKING | Fresh account, populated account, quick links render. | Dashboard cards now use profile completeness and stored API counts rather than fake scores. |
 | `/profile` | Yes | Yes | WORKING | Business profile display, logout, profile data persisted. | Logout only available here. |
 | `/studio` | Yes | Yes | WORKING | Groq async content plan, polling, refresh recovery, 7 items rendered. | Cold starts can add latency. |
 | `/calendar` | Yes | Yes | WORKING | Draft list, draft links, persisted generated drafts. | MVP list view only. |

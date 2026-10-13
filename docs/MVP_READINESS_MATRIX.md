@@ -1,6 +1,6 @@
 # MVP Readiness Matrix
 
-Verified date: 2026-10-12
+Verified date: 2026-10-13
 
 | Area | Status | Blocker | Severity | Required for MVP | Owner/action | Verified date |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Verified date: 2026-10-12
 | Trend engine | NOT_REQUIRED_FOR_MVP | Advanced deterministic engine not implemented. | P3 | No | Removed from primary navigation; defer advanced trend prediction. | 2026-10-11 |
 | Error handling | READY | Representative user-safe errors are covered; exhaustive provider-failure drill remains P2. | P2 | Yes | Core MVP actions return safe browser errors rather than tracebacks/secrets. | 2026-10-12 |
 | Responsive UX | READY | Core pages are usable across desktop/tablet/mobile; visual polish remains P3. | P3 | Yes | Mobile shell exposes primary MVP nav plus logout. | 2026-10-12 |
-| Observability | READY | No paid monitoring integration. | P2 | Yes | Health endpoints, readiness, job states, Render logs, and browser-visible job state are sufficient for demo. | 2026-10-12 |
-| Database backup | NOT_REQUIRED_FOR_MVP | Fresh Neon staging intentionally does not import Railway data. | - | No | Railway historical recovery remains separate. | 2026-10-11 |
+| Observability | READY | No paid monitoring integration. | P2 | Yes | Health endpoints, readiness, job states, Render logs, and browser-visible job state are sufficient for demo; v1 operations guide added. | 2026-10-13 |
+| Database backup | REQUIRED_FOR_V1 | Procedure documented; restore drill not fully tested in this workspace because `pg_dump`/`pg_restore` and a safe restore target were unavailable. | P1 | Yes for v1 | Complete logical dump/restore drill before tagging v1.0.0. | 2026-10-13 |
 | Deployment | READY | Render Free idle sleep remains a known limitation. | P2 | Yes | Vercel -> Render Free -> Neon/Upstash/Groq staging is active. | 2026-10-11 |
 | Staging E2E | READY | None known for current MVP feature groups. | - | Yes | Core deployed browser journey passed; current MVP feature groups are 13/13 working after hardening. | 2026-10-12 |

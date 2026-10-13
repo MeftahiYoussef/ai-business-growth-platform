@@ -105,8 +105,8 @@ export function ProfileClient({ business }: { business: Business | null }) {
         </div>
       </AppCard>
       <AppCard>
-        <div className="list-row"><Rocket size={22} /><span><strong>Subscription</strong><small>Growth Pro placeholder</small></span></div>
-        <div className="list-row"><Timer size={22} /><span><strong>Usage</strong><small>42 generated ideas • 3 competitors tracked</small></span></div>
+        <div className="list-row"><Rocket size={22} /><span><strong>Plan</strong><small>Free staging/demo workspace</small></span></div>
+        <div className="list-row"><Timer size={22} /><span><strong>Usage</strong><small>Usage limits are enforced server-side for AI generation and reports.</small></span></div>
         <label className="switch-row"><Contrast size={22} /><span>Light mode</span><input type="checkbox" onChange={(event) => toggleTheme(event.target.checked)} /></label>
         <Button onClick={signOut}><LogOut size={18} /> Logout</Button>
       </AppCard>
