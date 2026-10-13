@@ -109,8 +109,9 @@ AI quality issue found:
 - Root route loading boundary removed in PR #33 after deployed authenticated pages stayed on `Loading...`.
 - Studio job `55c6e4d6-aad8-4d9e-9498-f46c3b6b8bcb` returned `failed`, `AIValidationError`, and `result_available=false`. A successful Celery task exit did not mean a successful AI generation.
 - A fresh deployed Studio run rendered seven items, confirming that the failure was intermittent invalid provider output.
-- Validation recovery regenerates once from the original business context. Both responses pass the same validation; rejected output is never saved as a usable plan. Successful usage includes tokens from both responses.
+- Validation recovery regenerates once from the original business context. Both responses are checked against the same validation; rejected output is never saved as a usable plan. Successful usage includes tokens from both responses.
 - Studio failures remain visible beside the generation button. Terminal jobs without a usable plan stop polling and allow retry.
+- The next browser run hit a safe provider error on idea batch three after Groq 429 and repeated schema-rejection responses. It also exposed fabricated customer-growth copy in an accepted batch. Idea generation now rejects known quantitative performance claims and regenerates once using its existing validation retry; its prompt explicitly prohibits invented customers, testimonials, and case-study results.
 - Release tagging remains blocked until the final deployed clean-browser journey passes.
 
 ## Provider And Quota Notes

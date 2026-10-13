@@ -7,10 +7,11 @@ from django.utils import timezone
 
 from apps.ai.exceptions import AIValidationError
 from apps.ai.providers.factory import get_ai_provider
+from apps.ai.validators import contains_unsupported_metric_claim
 
 FORMATS = ["Carousel", "Short video", "LinkedIn post", "Thread", "Case study"]
 MOMENTUM_LABELS = ["Emerging", "Peaking", "Fading"]
-CONTENT_IDEA_PROMPT_VERSION = "content_ideas_groq_v1"
+CONTENT_IDEA_PROMPT_VERSION = "content_ideas_groq_v2"
 STOPWORDS = {
     "a",
     "and",
@@ -87,6 +88,9 @@ def validate_content_idea_batch(ideas, expected_count=None):
 
         if not idea.get("caption") or not idea.get("cta"):
             raise ContentIdeaValidationError("Content idea caption and CTA are required")
+        for field in ("title", "hook", "caption", "cta"):
+            if contains_unsupported_metric_claim(str(idea.get(field, ""))):
+                raise ContentIdeaValidationError("Unsupported quantitative performance claim; use qualitative copy without invented results")
         if "competitors are testing" in normalize_idea_text(idea.get("hook", "")):
             raise ContentIdeaValidationError("Placeholder competitor hook detected")
 
@@ -166,7 +170,9 @@ def build_content_idea_prompt(business, trends, count, offset=0, retry_feedback=
         "You generate content idea cards for a business marketing app. "
         "Return JSON only. Generate distinct, useful ideas grounded in the supplied business context. "
         "Do not output engagement scores, trend scores, analytics, provider metadata, or publication decisions. "
-        "Do not invent competitor performance, market metrics, or trend facts. "
+        "Do not invent competitor performance, market metrics, trend facts, customers, testimonials, or case-study results. "
+        "Do not promise quantitative growth, percentages, multipliers, follower or user counts, or revenue gains. "
+        "Case-study ideas should describe how to collect and present verified evidence, never fabricate a success story. "
         "Only mention a trend when it appears in available_trends. "
         "Every title must be unique, and ideas must not be CTA-only variations of each other."
     )
