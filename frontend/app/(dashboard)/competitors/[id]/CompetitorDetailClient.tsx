@@ -16,7 +16,7 @@ export function CompetitorDetailClient({ competitor, posts }: { competitor: Comp
   async function generate() {
     try {
       await generateCompetitorPosts(competitor._id);
-      showToast('Mock posts generated');
+      showToast('Sample posts generated');
       router.refresh();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not generate posts', 'error');
@@ -25,7 +25,13 @@ export function CompetitorDetailClient({ competitor, posts }: { competitor: Comp
 
   return (
     <div className="page-stack">
-      <SectionTitle title={competitor.name} action={<Button onClick={generate}><Sparkles size={18} /> Generate posts</Button>} />
+      <SectionTitle title={competitor.name} action={<Button onClick={generate}><Sparkles size={18} /> Generate sample posts</Button>} />
+      <AppCard>
+        <strong>Post-MVP competitor workspace</strong>
+        <p style={{ color: 'var(--muted)' }}>
+          Competitor intelligence is not part of the current v1 MVP. Generated posts on this page are sample records for workflow testing, not live competitor analytics.
+        </p>
+      </AppCard>
       <AppCard>
         <div className="action-row">
           <span className="chip">{competitor.followers} followers</span>
@@ -34,9 +40,9 @@ export function CompetitorDetailClient({ competitor, posts }: { competitor: Comp
           <span className="chip">{competitor.platform}</span>
         </div>
       </AppCard>
-      <SectionTitle title="Mock posts" />
+      <SectionTitle title="Sample posts" />
       {posts.length === 0 ? (
-        <AppCard>No posts yet. Generate mock posts to seed this competitor.</AppCard>
+        <AppCard>No posts yet. Generate sample posts only when testing this post-MVP workflow.</AppCard>
       ) : (
         <div className="page-stack compact">
           {posts.map((post) => (

@@ -21,6 +21,7 @@ def build_content_plan_prompt(*, context: dict[str, Any], platforms: list[str], 
     system = (
         "You are an expert social media strategist for a SaaS competitor-intelligence platform. "
         "Return structured JSON only, with no Markdown wrapper. Never fabricate analytics values. "
+        "Do not invent percentages, growth rates, revenue, engagement, follower counts, or case-study performance numbers. "
         "Use only the provided business, trend, competitor and analytics data. If information is unavailable, mark it as unavailable. "
         "Avoid unsupported promises and respect all brand restrictions. Return exactly seven meaningfully different items. "
         "Adapt each item to its selected platform and respect the preferred language. "

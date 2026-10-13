@@ -124,3 +124,28 @@ docker compose --profile migration up -d mongodb
 - Production settings require `DJANGO_SECRET_KEY`, restricted hosts, HTTPS, secure cookies, and restricted CORS/CSRF origins.
 - No backend secrets are used by the frontend.
 - The legacy Node backend should remain available until Django is verified against PostgreSQL and reviewed.
+
+## v1.0.0 Release Scope
+
+The current release target is a single-business MVP for staging/demo use:
+
+- dashboard
+- business profile
+- Generate Ideas
+- AI Studio seven-day content plans
+- drafts
+- calendar/list
+- reports
+- alerts
+- JSON/CSV exports
+
+The active staging stack is Vercel -> Render Free -> Django/Gunicorn -> Celery concurrency 1 -> Upstash Redis -> Neon PostgreSQL -> Groq. Render Free cold starts are an accepted demo limitation, not a production SLA.
+
+See:
+
+- `docs/V1_RELEASE_READINESS.md`
+- `docs/DEPLOYMENT_RUNBOOK.md`
+- `docs/OPERATIONS_AND_MONITORING.md`
+- `docs/DATABASE_BACKUP_RESTORE.md`
+
+Post-v1 work includes multi-business switching, advanced competitors, advanced Trend Engine, automatic publishing, billing, knowledge base/RAG, and production-grade hosting.

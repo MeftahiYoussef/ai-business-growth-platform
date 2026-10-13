@@ -14,6 +14,7 @@ from apps.ai.services import (
     validate_content_idea_batch,
 )
 from apps.businesses.models import Business
+from apps.content_ideas.models import ContentIdea
 
 
 def business(**overrides):
@@ -264,6 +265,39 @@ class ContentIdeaQualityTests(TestCase):
         provider_generator.assert_called_once()
         titles = [item["title"] for item in response.data["data"]]
         self.assertEqual(len({normalize_idea_text(title) for title in titles}), 10)
+
+    @override_settings(CONTENT_IDEAS_MAX_BUSINESS_DAILY_ITEMS=3)
+    def test_endpoint_enforces_business_daily_content_idea_quota_before_provider_call(self):
+        user = get_user_model().objects.create_user("owner-quota@example.com", "Password123!", full_name="Owner")
+        owned_business = Business.objects.create(
+            owner=user,
+            name="Signal Co",
+            industry="B2B AI software",
+            country="United States",
+            product_or_service="AI launch planning software",
+            target_audience="SaaS founders",
+        )
+        for index in range(3):
+            ContentIdea.objects.create(
+                business=owned_business,
+                title=f"Existing idea {index}",
+                hook=f"Existing hook {index}",
+                caption="Existing caption",
+                cta="Save this",
+                hashtags=["#Growth"],
+                format="LinkedIn post",
+                engagement_potential_score=80,
+                trend_match_score=75,
+            )
+        client = APIClient()
+        client.force_authenticate(user)
+
+        with patch("apps.content_ideas.views.generate_content_ideas_with_provider") as provider_generator:
+            response = client.post("/api/content-ideas/generate", {"businessId": str(owned_business.id), "count": 1}, format="json")
+
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("Daily content idea generation quota exceeded", str(response.data))
+        provider_generator.assert_not_called()
 
     def test_endpoint_advances_diversity_across_multiple_runs(self):
         user = get_user_model().objects.create_user("owner3@example.com", "Password123!", full_name="Owner")

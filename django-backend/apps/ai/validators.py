@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from rest_framework import serializers
@@ -12,6 +13,30 @@ from apps.ai.contracts.content_plan import (
 SUPPORTED_PLATFORMS = ALLOWED_PLATFORMS
 SUPPORTED_CONTENT_TYPES = ALLOWED_CONTENT_TYPES
 SUPPORTED_OBJECTIVES = ALLOWED_OBJECTIVES
+
+UNSUPPORTED_METRIC_PATTERNS = [
+    re.compile(
+        r"\b(?:increase|grow|boost|improve|double|triple|scale|lift)\b.{0,40}\b(?:engagement|revenue|followers|views|likes|comments|shares|sales|leads|conversions)\b.{0,40}(?:\b\d+(?:\.\d+)?\s?%|\$[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?\s?x\b|\b\d+\s+days\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:\b\d+(?:\.\d+)?\s?%|\b\d+(?:\.\d+)?\s?x\b).{0,30}\b(?:faster|higher|more|growth|increase|lift|improvement|conversion|engagement|revenue|sales|followers|views|leads)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:engagement|revenue|followers|views|likes|comments|shares|sales|leads|conversions)\b.{0,30}(?:\b\d+(?:\.\d+)?\s?%|\$[\d,]+(?:\.\d+)?)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:double|triple)\b.{0,30}\b(?:followers|revenue|sales|leads|conversions|engagement|views)\b",
+        re.IGNORECASE,
+    ),
+]
+METRIC_TEXT_FIELDS = ("title", "topic", "hook", "caption", "call_to_action", "visual_brief")
+
+
+def contains_unsupported_metric_claim(value: str) -> bool:
+    return any(pattern.search(value) for pattern in UNSUPPORTED_METRIC_PATTERNS)
 
 
 class ContentPlanItemSerializer(serializers.Serializer):
@@ -35,6 +60,15 @@ class ContentPlanItemSerializer(serializers.Serializer):
         if value is not True:
             raise serializers.ValidationError("Generated content must require human review")
         return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        for field in METRIC_TEXT_FIELDS:
+            value = str(attrs.get(field, "") or "")
+            if contains_unsupported_metric_claim(value):
+                raise serializers.ValidationError({
+                    field: "Unsupported quantitative performance claims are not allowed in generated content plans"
+                })
+        return attrs
 
 
 class ContentPlanSerializer(serializers.Serializer):
