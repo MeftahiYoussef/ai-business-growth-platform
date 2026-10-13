@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Status: **not ready to tag yet**. The release branch and route-loading hotfixes have merged. The final browser journey exposed intermittent AI Studio output validation failures. The validation recovery hotfix must merge, final main CI must pass, main must deploy, and a final clean-browser journey must pass.
+Final release status and deployed acceptance evidence are recorded in the [v1.0.0 release](https://github.com/MeftahiYoussef/ai-business-growth-platform/releases/tag/v1.0.0). Publish that release only after final main CI, deployment verification, and a clean-browser journey pass. The findings below retain the pre-release history, including failed gate attempts.
 
 ## Scope
 
@@ -208,4 +208,4 @@ v1.0.0 requires:
 - main CI passed
 - deployed main commit verified
 
-Current status: **not ready to tag until this release branch is merged, deployed, and clean-browser verified.**
+Final gate outcome: see the [v1.0.0 release evidence](https://github.com/MeftahiYoussef/ai-business-growth-platform/releases/tag/v1.0.0). A failed browser run or incomplete main CI blocks publication.
