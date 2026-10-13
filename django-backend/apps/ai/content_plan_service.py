@@ -170,28 +170,43 @@ def _execute_content_plan_generation(record: AIContentGeneration) -> AIContentGe
     provider = get_ai_provider()
     started = time.monotonic()
     try:
-        result = provider.generate_structured_json(
-            system=prompt["system"],
-            user=prompt["user"],
-            schema=prompt["schema"],
-            prompt_version=prompt["prompt_version"],
-        )
-        if not isinstance(result.parsed_data, dict):
-            raise AIValidationError("AI provider did not return an object")
-        try:
-            plan = validate_content_plan(result.parsed_data)
-        except ValidationError as exc:
-            raise AIValidationError("AI provider returned schema-invalid content") from exc
+        validation_attempts = 0
+        input_tokens = output_tokens = 0
+        for validation_attempt in range(2):
+            validation_attempts += 1
+            try:
+                result = provider.generate_structured_json(
+                    system=prompt["system"],
+                    user=prompt["user"],
+                    schema=prompt["schema"],
+                    prompt_version=prompt["prompt_version"],
+                )
+                input_tokens += result.input_tokens
+                output_tokens += result.output_tokens
+                plan = validate_content_plan(result.parsed_data)
+                break
+            except (ValidationError, AIValidationError) as exc:
+                if validation_attempt == 1:
+                    raise AIValidationError("AI provider returned invalid content after regeneration") from exc
+                # Regenerate from the original context; never persist or relax validation of rejected content.
+                logger.warning("ai_generation_validation_retry generation_id=%s", record.id)
+                prompt["system"] += (
+                    " The previous response failed application validation. Regenerate the entire plan. "
+                    "Follow every schema constraint, use unique day numbers 1 through 7, and require human review. "
+                    "Avoid all quantitative performance claims, including percentages, multipliers, and promises "
+                    "to double or triple engagement, followers, leads, revenue, or sales."
+                )
 
         record.generated_content = plan
         record.structured_output = plan
         record.provider = result.provider
         record.model = result.model
-        record.usage = _usage(result.input_tokens, result.output_tokens)
+        record.usage = _usage(input_tokens, output_tokens)
         record.provider_request_id = result.request_id or ""
         record.generation_parameters = {
             **record.generation_parameters,
             "finish_reason": result.finish_reason,
+            "validation_attempts": validation_attempts,
         }
         record.latency_ms = round((time.monotonic() - started) * 1000)
         record.status = AIContentGeneration.Status.COMPLETED
