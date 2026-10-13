@@ -3,6 +3,9 @@ import { Shell } from '@/components/layout/Shell';
 import { serverApi } from '@/lib/api/server';
 import type { ApiEnvelope, User } from '@/types/api';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   try {
     await serverApi<ApiEnvelope<User>>('/auth/me');
